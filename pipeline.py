@@ -10,6 +10,7 @@ from fetch import Song, fetch_songs
 
 MAX_QUERIES = 6
 
+
 def _find_songs(
     searches: list[tuple[str, str | None]], count: int, skip_ids: set[str], workdir: Path
 ) -> Iterator[tuple[Song, str, str | None]]:
@@ -34,10 +35,12 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
     from queries import generate_queries
     from recommend import get_verdict
 
+    # 1. Load the current taste and the ids that must not be recommended again.
     taste_version, taste = appdb.get_current_taste()
     skip_ids = cache.get_seen_ids() | appdb.get_rated_ids()
     yield {"type": "started", "query": query, "count": count, "exploration": exploration, "taste_version": taste_version}
 
+    # 2. Use the given query, or generate queries from the taste at this exploration level.
     if query is None:
         generated = generate_queries(taste, exploration, min(count, MAX_QUERIES))
         searches = [(g.query, g.tier) for g in generated]
@@ -45,6 +48,7 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
     else:
         searches = [(query, None)]
 
+    # 3. Download clips for each query and analyze them one at a time.
     analyzed = 0
     recommended = 0
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:
@@ -65,11 +69,14 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
             }
             yield {"type": "analyzing", "index": analyzed, **result}
 
+            # 4. Ask the audio model for a verdict; analyses without one are dropped.
             description = analyze(song.clip_path, taste, exploration)
             song.clip_path.unlink(missing_ok=True)
             is_recommended = get_verdict(description)
             if is_recommended is None:
                 continue
+
+            # 5. Cache the song so later runs skip it, then report the result.
             cache.add(song.video_id, song.title, song.artist, song.url, description, song_query, taste_version)
 
             recommended += is_recommended
