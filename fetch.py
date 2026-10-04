@@ -49,10 +49,9 @@ def _is_studio(info: dict) -> bool:
         return False
     if (info.get("view_count") or 0) < MIN_VIEWS:
         return False
-    metadata = " ".join(
-        [info.get("title") or "", info.get("description") or "", info.get("uploader") or "", *(info.get("tags") or [])]
-    )
-    if AI_GENERATED.search(metadata):
+    tags = info.get("tags") or []
+    metadata = " ".join([info.get("title") or "", info.get("description") or "", info.get("uploader") or "", *tags])
+    if AI_GENERATED.search(metadata) or any(tag.strip().casefold() == "ai" for tag in tags):
         return False
     return not (
         NON_STUDIO.search(_get_qualifiers(info.get("title") or ""))
@@ -74,8 +73,10 @@ def _select_middle_clip(info: dict, _ydl) -> list[dict]:
     return [{"start_time": start, "end_time": start + CLIP_SECONDS}]
 
 
-def fetch_songs(query: str, count: int, skip_ids: set[str], workdir: Path) -> Iterator[Song]:
-    """Yield up to `count` new studio songs as downloaded audio clips; skips ids in `skip_ids`."""
+def fetch_songs(
+    query: str, count: int, skip_ids: set[str], workdir: Path
+) -> Iterator[Song]:
+    """Yield up to `count` studio-song audio clips; record considered ids in `skip_ids`."""
     candidates = [e for e in _search(query, count * OVERFETCH) if e["id"] not in skip_ids]
 
     opts = {
@@ -92,6 +93,7 @@ def fetch_songs(query: str, count: int, skip_ids: set[str], workdir: Path) -> It
         for entry in candidates:
             if yielded >= count:
                 return
+            skip_ids.add(entry["id"])
             url = f"https://www.youtube.com/watch?v={entry['id']}"
             try:
                 info = ydl.extract_info(url, download=False)

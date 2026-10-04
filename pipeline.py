@@ -6,19 +6,24 @@ from typing import Iterator
 
 from appdb import AppDb
 from cache import Cache
-from fetch import Song, fetch_songs
+from fetch import OVERFETCH, Song, fetch_songs
 
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
+MAX_SEARCH_RESULTS_PER_QUERY = 300
 
 
 def _find_songs(
-    searches: list[tuple[str, str | None]], count: int, skip_ids: set[str], workdir: Path
+    searches: list[tuple[str, str | None]],
+    count: int,
+    skip_ids: set[str],
+    workdir: Path,
 ) -> Iterator[tuple[Song, str, str | None]]:
-    """Yield songs in expanding batches until the searches produce no new candidates."""
+    """Yield songs in expanding batches, up to the per-query search result limit."""
+    max_count = MAX_SEARCH_RESULTS_PER_QUERY // OVERFETCH * len(searches)
+    count = min(count, max_count)
     while count:
         remaining = count
-        found_any = False
         for i, (query, tier) in enumerate(searches):
             if remaining == 0:
                 break
@@ -27,14 +32,19 @@ def _find_songs(
                 # Later queries and batches must not return this song again.
                 skip_ids.add(song.video_id)
                 remaining -= 1
-                found_any = True
                 yield song, query, tier
-        if not found_any:
+        if count == max_count:
             return
-        count *= 2
+        count = min(count * 2, max_count)
 
 
-def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: AppDb) -> Iterator[dict]:
+def run(
+    query: str | None,
+    count: int,
+    exploration: int,
+    cache: Cache,
+    appdb: AppDb,
+) -> Iterator[dict]:
     """Find and analyze new songs, yielding a progress event dict per step.
 
     Without a `query`, search queries are generated from the taste at the given `exploration` level (0-100).
@@ -64,7 +74,7 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
     recommended = 0
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:
         songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir))
-        # Download the next clip while the current one is being analyzed.
+        # A single worker fetches the next clip while the current one is being analyzed.
         pending = pool.submit(next, songs, None)
         while (found := pending.result()) is not None:
             song, song_query, tier = found

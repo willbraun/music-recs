@@ -8,7 +8,7 @@ from transformers.models.musicflamingo import modeling_musicflamingo
 MODEL_ID = "nvidia/music-flamingo-2601-hf"
 PROMPT = "You are an expert music recommender. Evaluate whether you would recommend the given song to me based on my musical taste. My taste is:"
 OUTPUT_FORMAT = (
-    "Respond in exactly this format. Line 1: 'Verdict: YES' or 'Verdict: NO' (YES only if I would like this song). "
+    "Respond in exactly this format. Response should have a maximum of 100 words. Line 1: 'Verdict: YES' or 'Verdict: NO' (YES only if I would like this song). "
     "Line 2: one sentence explaining why."
 )
 MAX_NEW_TOKENS = 256
