@@ -8,6 +8,7 @@ const statusEl = document.getElementById('status')
 const resultsEl = document.getElementById('results')
 const historyStatusEl = document.getElementById('history-status')
 const historyListEl = document.getElementById('history-list')
+let requestedCount = 0
 
 // Text goes in via textContent only: titles and descriptions come from YouTube and a model.
 function createElement(tag, props = {}, ...children) {
@@ -68,7 +69,7 @@ async function loadHistory() {
 let scored = []
 
 function renderResults() {
-	const sorted = [...scored].sort((a, b) => b.recommended - a.recommended)
+	const sorted = scored.filter(song => song.recommended).sort((a, b) => b.recommended - a.recommended)
 	resultsEl.replaceChildren(
 		...sorted.map(song => createSongItem(song, [song.tier, song.query].filter(Boolean).join(' · '))),
 	)
@@ -77,6 +78,7 @@ function renderResults() {
 function handleEvent(event) {
 	switch (event.type) {
 		case 'started':
+			requestedCount = event.count
 			setStatus(
 				statusEl,
 				event.query
@@ -91,14 +93,20 @@ function handleEvent(event) {
 			setStatus(statusEl, 'Fetching songs...')
 			break
 		case 'analyzing':
-			setStatus(statusEl, `Analyzing ${event.index}/${runForm.count.value}: ${event.artist} - ${event.title}`)
+			setStatus(
+				statusEl,
+				`Analyzing: Completed ${event.index - 1} songs; ${event.recommended_count}/${requestedCount} recommended: ${event.artist} - ${event.title}`,
+			)
 			break
 		case 'scored':
 			scored.push(event)
 			renderResults()
 			break
 		case 'done':
-			setStatus(statusEl, `Done: ${event.recommended} recommended of ${event.analyzed} new songs.`)
+			setStatus(
+				statusEl,
+				`Done: ${event.recommended}/${event.count} requested recommendations after analyzing ${event.analyzed} songs.`,
+			)
 			break
 		case 'error':
 			setStatus(statusEl, `Run failed: ${event.message}`, true)

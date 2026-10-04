@@ -9,20 +9,29 @@ from cache import Cache
 from fetch import Song, fetch_songs
 
 MAX_QUERIES = 6
+CANDIDATES_PER_RECOMMENDATION = 2
 
 
 def _find_songs(
     searches: list[tuple[str, str | None]], count: int, skip_ids: set[str], workdir: Path
 ) -> Iterator[tuple[Song, str, str | None]]:
-    """Yield up to `count` new songs across `searches`, splitting what is left evenly over the remaining queries."""
-    remaining = count
-    for i, (query, tier) in enumerate(searches):
-        share = math.ceil(remaining / (len(searches) - i))
-        for song in fetch_songs(query, share, skip_ids, workdir):
-            # Later queries in the same run must not return this song again.
-            skip_ids.add(song.video_id)
-            remaining -= 1
-            yield song, query, tier
+    """Yield songs in expanding batches until the searches produce no new candidates."""
+    while count:
+        remaining = count
+        found_any = False
+        for i, (query, tier) in enumerate(searches):
+            if remaining == 0:
+                break
+            share = math.ceil(remaining / (len(searches) - i))
+            for song in fetch_songs(query, share, skip_ids, workdir):
+                # Later queries and batches must not return this song again.
+                skip_ids.add(song.video_id)
+                remaining -= 1
+                found_any = True
+                yield song, query, tier
+        if not found_any:
+            return
+        count *= 2
 
 
 def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: AppDb) -> Iterator[dict]:
@@ -41,8 +50,9 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
     yield {"type": "started", "query": query, "count": count, "exploration": exploration, "taste_version": taste_version}
 
     # 2. Use the given query, or generate queries from the taste at this exploration level.
+    candidate_limit = count * CANDIDATES_PER_RECOMMENDATION
     if query is None:
-        generated = generate_queries(taste, exploration, min(count, MAX_QUERIES))
+        generated = generate_queries(taste, exploration, min(candidate_limit, MAX_QUERIES))
         searches = [(g.query, g.tier) for g in generated]
         yield {"type": "queries", "queries": [{"query": q, "tier": tier} for q, tier in searches]}
     else:
@@ -53,7 +63,7 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
     analyzed = 0
     recommended = 0
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:
-        songs = _find_songs(searches, count, skip_ids, Path(workdir))
+        songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir))
         # Download the next clip while the current one is being analyzed.
         pending = pool.submit(next, songs, None)
         while (found := pending.result()) is not None:
@@ -68,7 +78,12 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
                 "query": song_query,
                 "tier": tier,
             }
-            yield {"type": "analyzing", "index": analyzed, **result}
+            yield {
+                "type": "analyzing",
+                "index": analyzed,
+                "recommended_count": recommended,
+                **result,
+            }
 
             # 4. Ask the audio model for a verdict; analyses without one are dropped.
             description = analyze(song.clip_path, taste, exploration)
@@ -88,5 +103,7 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
                 "description": description,
                 "recommended": is_recommended,
             }
+            if recommended >= count:
+                break
 
-    yield {"type": "done", "analyzed": analyzed, "recommended": recommended}
+    yield {"type": "done", "analyzed": analyzed, "recommended": recommended, "count": count}
