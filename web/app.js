@@ -87,6 +87,9 @@ function handleEvent(event) {
 		case 'queries':
 			setStatus(statusEl, `Queries: ${event.queries.map(q => `${q.query} (${q.tier})`).join(', ')}`)
 			break
+		case 'fetching':
+			setStatus(statusEl, 'Fetching songs...')
+			break
 		case 'analyzing':
 			setStatus(statusEl, `Analyzing ${event.index}/${runForm.count.value}: ${event.artist} - ${event.title}`)
 			break

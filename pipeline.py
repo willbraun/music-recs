@@ -49,6 +49,7 @@ def run(query: str | None, count: int, exploration: int, cache: Cache, appdb: Ap
         searches = [(query, None)]
 
     # 3. Download clips for each query and analyze them one at a time.
+    yield {"type": "fetching"}
     analyzed = 0
     recommended = 0
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:

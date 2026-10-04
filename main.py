@@ -19,6 +19,8 @@ def main() -> None:
         if event["type"] == "queries":
             for q in event["queries"]:
                 print(f"Query ({q['tier']}): {q['query']}", flush=True)
+        elif event["type"] == "fetching":
+            print("Fetching songs...", flush=True)
         elif event["type"] == "analyzing":
             print(f"[{event['index']}/{args.count}] {event['artist']} - {event['title']}", flush=True)
         elif event["type"] == "scored":
