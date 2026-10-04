@@ -1,0 +1,1 @@
+- When there are database updates, update the specs/database.md and ensure any relevant migration scripts or cache handling logic are also reviewed and updated accordingly.
