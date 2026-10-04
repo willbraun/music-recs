@@ -13,6 +13,22 @@ OUTPUT_FORMAT = (
 )
 MAX_NEW_TOKENS = 256
 
+# Explicit exclusions in the taste stay hard NOs at every level.
+STRICT_GUIDANCE = "Say YES only if the song closely fits my taste."
+BALANCED_GUIDANCE = "Say YES if the song fits my taste or is a clear neighbor of it."
+OPEN_GUIDANCE = (
+    "Say YES if the song shares qualities I like (mood, energy, production, vocal style), "
+    "even if its genre or artist is not listed. Explicit exclusions and language requirements still mean NO."
+)
+
+
+def _pick_guidance(exploration: int) -> str:
+    if exploration < 34:
+        return STRICT_GUIDANCE
+    if exploration < 67:
+        return BALANCED_GUIDANCE
+    return OPEN_GUIDANCE
+
 
 # MPS has no float64 support, so the upstream rotary embedding is redone in float32.
 def apply_rotary_time_emb(hidden_states, cos, sin):
@@ -38,13 +54,13 @@ def _load():
     return processor, model
 
 
-def analyze(audio_path: Path, taste: str) -> str:
+def analyze(audio_path: Path, taste: str, exploration: int) -> str:
     processor, model = _load()
     conversation = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": f"{PROMPT} {taste}\n\n{OUTPUT_FORMAT}"},
+                {"type": "text", "text": f"{PROMPT} {taste}\n\n{_pick_guidance(exploration)}\n\n{OUTPUT_FORMAT}"},
                 {"type": "audio", "path": str(audio_path)},
             ],
         }

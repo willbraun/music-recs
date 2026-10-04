@@ -1,5 +1,6 @@
 yt-dlp
 torch
 transformers
+accelerate
 fastapi
 uvicorn

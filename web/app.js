@@ -3,13 +3,14 @@ const YOUTUBE_PREFIX = 'https://www.youtube.com/'
 
 const runForm = document.getElementById('run-form')
 const runButton = runForm.querySelector('button')
+const explorationValueEl = document.getElementById('exploration-value')
 const statusEl = document.getElementById('status')
 const resultsEl = document.getElementById('results')
 const historyStatusEl = document.getElementById('history-status')
 const historyListEl = document.getElementById('history-list')
 
 // Text goes in via textContent only: titles and descriptions come from YouTube and a model.
-function el(tag, props = {}, ...children) {
+function createElement(tag, props = {}, ...children) {
 	const node = Object.assign(document.createElement(tag), props)
 	node.append(...children)
 	return node
@@ -20,19 +21,19 @@ function setStatus(node, text, isError = false) {
 	node.className = isError ? 'error' : ''
 }
 
-function songLink(song) {
+function createSongLink(song) {
 	const label = `${song.artist} - ${song.title}`
-	if (!song.url.startsWith(YOUTUBE_PREFIX)) return el('span', {}, label)
-	return el('a', { href: song.url, target: '_blank', rel: 'noopener' }, label)
+	if (!song.url.startsWith(YOUTUBE_PREFIX)) return createElement('span', {}, label)
+	return createElement('a', { href: song.url, target: '_blank', rel: 'noopener' }, label)
 }
 
-function songItem(song, meta = '') {
-	return el(
+function createSongItem(song, meta = '') {
+	return createElement(
 		'li',
 		{ className: song.recommended ? 'recommended' : '' },
-		songLink(song),
-		el('span', { className: 'meta' }, meta),
-		el('details', {}, el('summary', {}, 'Description'), el('p', {}, song.description)),
+		createSongLink(song),
+		createElement('span', { className: 'meta' }, meta),
+		createElement('details', {}, createElement('summary', {}, 'Description'), createElement('p', {}, song.description)),
 	)
 }
 
@@ -56,7 +57,7 @@ async function loadHistory() {
 		historyListEl.replaceChildren(
 			...songs.map(song => {
 				const taste = song.taste_version == null ? null : `taste v${song.taste_version}`
-				return songItem(song, [song.query, taste, `${song.analyzed_at} UTC`].filter(Boolean).join(' · '))
+				return createSongItem(song, [song.query, taste, `${song.analyzed_at} UTC`].filter(Boolean).join(' · '))
 			}),
 		)
 	} catch (e) {
@@ -68,13 +69,23 @@ let scored = []
 
 function renderResults() {
 	const sorted = [...scored].sort((a, b) => b.recommended - a.recommended)
-	resultsEl.replaceChildren(...sorted.map(song => songItem(song)))
+	resultsEl.replaceChildren(
+		...sorted.map(song => createSongItem(song, [song.tier, song.query].filter(Boolean).join(' · '))),
+	)
 }
 
 function handleEvent(event) {
 	switch (event.type) {
 		case 'started':
-			setStatus(statusEl, `Searching "${event.query}" (taste v${event.taste_version})...`)
+			setStatus(
+				statusEl,
+				event.query
+					? `Searching "${event.query}" (taste v${event.taste_version})...`
+					: `Generating queries (exploration ${event.exploration}%, taste v${event.taste_version})...`,
+			)
+			break
+		case 'queries':
+			setStatus(statusEl, `Queries: ${event.queries.map(q => `${q.query} (${q.tier})`).join(', ')}`)
 			break
 		case 'analyzing':
 			setStatus(statusEl, `Analyzing ${event.index}/${runForm.count.value}: ${event.artist} - ${event.title}`)
@@ -84,7 +95,7 @@ function handleEvent(event) {
 			renderResults()
 			break
 		case 'done':
-			setStatus(statusEl, `Done: ${event.recommended} recommended of ${event.analyzed} new tracks.`)
+			setStatus(statusEl, `Done: ${event.recommended} recommended of ${event.analyzed} new songs.`)
 			break
 		case 'error':
 			setStatus(statusEl, `Run failed: ${event.message}`, true)
@@ -92,7 +103,7 @@ function handleEvent(event) {
 	}
 }
 
-function stream(runId) {
+function streamRun(runId) {
 	const source = new EventSource(`${API_BASE}/api/runs/${runId}/events`)
 	source.onmessage = message => {
 		const event = JSON.parse(message.data)
@@ -119,12 +130,13 @@ runForm.addEventListener('submit', async submitEvent => {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				query: runForm.query.value,
+				query: runForm.query.value.trim() || null,
 				count: Number(runForm.count.value),
+				exploration: Number(runForm.exploration.value),
 			}),
 		})
 		if (!res.ok) throw new Error(`Request failed (${res.status})`)
-		stream((await res.json()).id)
+		streamRun((await res.json()).id)
 	} catch (e) {
 		setStatus(statusEl, `Could not start run: ${e.message}`, true)
 		runButton.disabled = false
@@ -134,3 +146,7 @@ runForm.addEventListener('submit', async submitEvent => {
 for (const button of document.querySelectorAll('nav button')) {
 	button.addEventListener('click', () => showView(button.dataset.view))
 }
+
+runForm.exploration.addEventListener('input', () => {
+	explorationValueEl.textContent = runForm.exploration.value
+})

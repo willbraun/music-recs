@@ -16,15 +16,16 @@ from pydantic import BaseModel, Field, StringConstraints
 from appdb import AppDb
 from cache import Cache
 from pipeline import run
-from recommend import verdict
+from recommend import get_verdict
 
 WEB_DIR = Path(__file__).parent / "web"
 KEEPALIVE_SECONDS = 15
 
 
 class RunRequest(BaseModel):
-    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
     count: int = Field(3, ge=1, le=50)
+    exploration: int = Field(50, ge=0, le=100)
 
 
 @dataclass
@@ -45,12 +46,12 @@ class Job:
             self.cond.notify_all()
 
 
-def _worker(jobs: "queue.Queue[Job]", cache: Cache, appdb: AppDb) -> None:
+def _process_jobs(jobs: "queue.Queue[Job]", cache: Cache, appdb: AppDb) -> None:
     # A single worker serializes runs, since there is one model on one device.
     while True:
         job = jobs.get()
         try:
-            for event in run(job.request.query, job.request.count, cache, appdb):
+            for event in run(job.request.query, job.request.count, job.request.exploration, cache, appdb):
                 job.publish(event)
         except Exception as e:
             job.publish({"type": "error", "message": str(e)})
@@ -76,15 +77,15 @@ def _stream(job: Job, start: int) -> Iterator[str]:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def manage_lifespan(app: FastAPI):
     app.state.cache = Cache()
     app.state.jobs = {}
     app.state.queue = queue.Queue()
-    threading.Thread(target=_worker, args=(app.state.queue, app.state.cache, AppDb()), daemon=True).start()
+    threading.Thread(target=_process_jobs, args=(app.state.queue, app.state.cache, AppDb()), daemon=True).start()
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=manage_lifespan)
 
 
 @app.post("/api/runs", status_code=202)
@@ -97,7 +98,7 @@ def start_run(body: RunRequest, request: Request) -> dict:
 
 
 @app.get("/api/runs/{run_id}/events")
-def run_events(run_id: str, request: Request, last_event_id: Annotated[int | None, Header()] = None) -> StreamingResponse:
+def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int | None, Header()] = None) -> StreamingResponse:
     job = request.app.state.jobs.get(run_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Unknown run")
@@ -108,7 +109,7 @@ def run_events(run_id: str, request: Request, last_event_id: Annotated[int | Non
 @app.get("/api/songs")
 def list_songs(request: Request) -> list[dict]:
     songs = request.app.state.cache.list_songs()
-    return [{**song, "recommended": verdict(song["description"]) is True} for song in songs]
+    return [{**song, "recommended": get_verdict(song["description"]) is True} for song in songs]
 
 
 # Mounted last so it never shadows the /api routes.

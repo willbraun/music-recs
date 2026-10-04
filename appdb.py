@@ -45,11 +45,11 @@ class AppDb:
             if conn.execute("SELECT 1 FROM taste_versions").fetchone() is None:
                 conn.execute("INSERT INTO taste_versions (text, source) VALUES (?, 'seed')", (SEED_TASTE,))
 
-    def current_taste(self) -> tuple[int, str]:
+    def get_current_taste(self) -> tuple[int, str]:
         with connect(self._path) as conn:
             row = conn.execute("SELECT id, text FROM taste_versions ORDER BY id DESC LIMIT 1").fetchone()
             return row["id"], row["text"]
 
-    def rated_ids(self) -> set[str]:
+    def get_rated_ids(self) -> set[str]:
         with connect(self._path) as conn:
             return {row["video_id"] for row in conn.execute("SELECT video_id FROM feedback")}

@@ -33,7 +33,7 @@ class Cache:
             if "score" in existing:
                 conn.execute("ALTER TABLE songs DROP COLUMN score")
 
-    def seen_ids(self) -> set[str]:
+    def get_seen_ids(self) -> set[str]:
         with connect(self._path) as conn:
             return {row["video_id"] for row in conn.execute("SELECT video_id FROM songs")}
 

@@ -27,7 +27,7 @@ AI_GENERATED = re.compile(
 
 
 @dataclass
-class Track:
+class Song:
     video_id: str
     title: str
     artist: str
@@ -35,7 +35,7 @@ class Track:
     clip_path: Path
 
 
-def _qualifiers(title: str) -> str:
+def _get_qualifiers(title: str) -> str:
     # Only brackets and dash suffixes, so titles like "Live Forever" survive.
     return " ".join(re.findall(r"[(\[]([^)\]]*)[)\]]", title) + title.split(" - ")[1:])
 
@@ -55,8 +55,8 @@ def _is_studio(info: dict) -> bool:
     if AI_GENERATED.search(metadata):
         return False
     return not (
-        NON_STUDIO.search(_qualifiers(info.get("title") or ""))
-        or NON_STUDIO.search(_qualifiers(title))
+        NON_STUDIO.search(_get_qualifiers(info.get("title") or ""))
+        or NON_STUDIO.search(_get_qualifiers(title))
         or NON_STUDIO.search(info.get("album") or "")
     )
 
@@ -66,16 +66,16 @@ def _search(query: str, limit: int) -> list[dict]:
     opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist", "playlistend": limit}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
-    return [e for e in info["entries"] if not NON_STUDIO.search(_qualifiers(e.get("title") or ""))]
+    return [e for e in info["entries"] if not NON_STUDIO.search(_get_qualifiers(e.get("title") or ""))]
 
 
-def _middle_clip(info: dict, _ydl) -> list[dict]:
+def _select_middle_clip(info: dict, _ydl) -> list[dict]:
     start = max(0, (info["duration"] - CLIP_SECONDS) / 2)
     return [{"start_time": start, "end_time": start + CLIP_SECONDS}]
 
 
-def fetch_tracks(query: str, count: int, skip_ids: set[str], workdir: Path) -> Iterator[Track]:
-    """Yield up to `count` new studio tracks as downloaded audio clips; skips ids in `skip_ids`."""
+def fetch_songs(query: str, count: int, skip_ids: set[str], workdir: Path) -> Iterator[Song]:
+    """Yield up to `count` new studio songs as downloaded audio clips; skips ids in `skip_ids`."""
     candidates = [e for e in _search(query, count * OVERFETCH) if e["id"] not in skip_ids]
 
     opts = {
@@ -83,7 +83,7 @@ def fetch_tracks(query: str, count: int, skip_ids: set[str], workdir: Path) -> I
         "no_warnings": True,
         "format": "bestaudio/best",
         "outtmpl": str(workdir / "%(id)s.%(ext)s"),
-        "download_ranges": _middle_clip,
+        "download_ranges": _select_middle_clip,
         "force_keyframes_at_cuts": True,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
     }
@@ -102,4 +102,4 @@ def fetch_tracks(query: str, count: int, skip_ids: set[str], workdir: Path) -> I
                 print(f"Skipping {entry['id']}: {e}")
                 continue
             yielded += 1
-            yield Track(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav")
+            yield Song(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav")

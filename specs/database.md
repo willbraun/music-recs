@@ -18,7 +18,7 @@ One row per analyzed song.
 | Column          | Type    | Constraints                         | Description                                                                                                                                                               |
 | --------------- | ------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `video_id`      | TEXT    | PRIMARY KEY                         | YouTube video id                                                                                                                                                          |
-| `title`         | TEXT    | NOT NULL                            | Track title                                                                                                                                                               |
+| `title`         | TEXT    | NOT NULL                            | Song title                                                                                                                                                                |
 | `artist`        | TEXT    | NOT NULL                            | Artist name                                                                                                                                                               |
 | `url`           | TEXT    | NOT NULL                            | `https://www.youtube.com/watch?v=<video_id>`                                                                                                                              |
 | `description`   | TEXT    | NOT NULL                            | Music Flamingo's description for the clip, starting with `Verdict: YES` or `Verdict: NO`                                                                                  |
@@ -53,7 +53,7 @@ Append-only history of the taste text. The current taste is the row with the hig
 
 ### `feedback`
 
-One rating per song. Song details are copied from `songs`, so a row stays useful after `cache.db` is deleted. Nothing writes to this table yet; `AppDb.rated_ids` reads it so rated songs are skipped in searches.
+One rating per song. Song details are copied from `songs`, so a row stays useful after `cache.db` is deleted. Nothing writes to this table yet; `AppDb.get_rated_ids` reads it so rated songs are skipped in searches.
 
 | Column          | Type    | Constraints                         | Description                                      |
 | --------------- | ------- | ----------------------------------- | ------------------------------------------------ |
