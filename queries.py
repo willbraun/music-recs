@@ -1,3 +1,4 @@
+import gc
 import json
 import math
 import random
@@ -5,6 +6,7 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
@@ -50,6 +52,16 @@ def _load():
     return tokenizer, model
 
 
+def unload_model() -> None:
+    """Release the query model so its memory is free for the audio model."""
+    _load.cache_clear()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+
+
 def _build_prompt(taste: str, tiers: list[str]) -> str:
     lines = "\n".join(f"{i}. {TIER_INSTRUCTIONS[tier]}" for i, tier in enumerate(tiers, 1))
     return (
@@ -79,16 +91,21 @@ def _get_fallback_queries(taste: str) -> list[str]:
     return artists or [taste[:100]]
 
 
-def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuery]:
-    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
-    tiers = allocate_tiers(n, exploration)
+def _generate_text(prompt: str) -> str:
     tokenizer, model = _load()
-    messages = [{"role": "user", "content": _build_prompt(taste, tiers)}]
+    messages = [{"role": "user", "content": prompt}]
     inputs = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, return_dict=True, return_tensors="pt"
     ).to(model.device)
     outputs = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=True, temperature=TEMPERATURE)
-    text = tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+
+
+def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuery]:
+    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
+    tiers = allocate_tiers(n, exploration)
+    text = _generate_text(_build_prompt(taste, tiers))
+    unload_model()
 
     generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]
     # Pad with taste-derived queries when the model returned too few.

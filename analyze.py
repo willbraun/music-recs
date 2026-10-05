@@ -8,10 +8,9 @@ from transformers.models.musicflamingo import modeling_musicflamingo
 MODEL_ID = "nvidia/music-flamingo-2601-hf"
 PROMPT = "You are an expert music recommender. Evaluate whether you would recommend the given song to me based on my musical taste. My taste is:"
 OUTPUT_FORMAT = (
-    "Respond in exactly this format. Response should have a maximum of 100 words. Line 1: 'Verdict: YES' or 'Verdict: NO' (YES only if I would like this song). "
-    "Line 2: one sentence explaining why."
+    "Respond in exactly this format. 'Verdict: YES' or 'Verdict: NO' (YES only if I would like this song). No additional output permitted."
 )
-MAX_NEW_TOKENS = 256
+MAX_NEW_TOKENS = 16
 
 # Explicit exclusions in the taste stay hard NOs at every level.
 STRICT_GUIDANCE = "Say YES only if the song closely fits my taste."
@@ -50,7 +49,8 @@ modeling_musicflamingo.apply_rotary_time_emb = apply_rotary_time_emb
 @lru_cache(maxsize=1)
 def _load():
     processor = AutoProcessor.from_pretrained(MODEL_ID)
-    model = MusicFlamingoForConditionalGeneration.from_pretrained(MODEL_ID, device_map="auto")
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    model = MusicFlamingoForConditionalGeneration.from_pretrained(MODEL_ID, dtype=torch.bfloat16, device_map=device)
     return processor, model
 
 
