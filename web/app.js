@@ -89,6 +89,9 @@ function handleEvent(event) {
 		case 'queries':
 			setStatus(statusEl, `Queries: ${event.queries.map(q => `${q.query} (${q.tier})`).join(', ')}`)
 			break
+		case 'downloading_model':
+			setStatus(statusEl, `Downloading model ${event.model} (first run only, this may take a while)...`)
+			break
 		case 'fetching':
 			setStatus(statusEl, 'Fetching songs...')
 			break

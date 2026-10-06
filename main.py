@@ -20,6 +20,8 @@ def main() -> None:
         if event["type"] == "queries":
             for q in event["queries"]:
                 print(f"Query ({q['tier']}): {q['query']}", flush=True)
+        elif event["type"] == "downloading_model":
+            print(f"Downloading model {event['model']}...", flush=True)
         elif event["type"] == "fetching":
             print("Fetching songs...", flush=True)
         elif event["type"] == "analyzing":

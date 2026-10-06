@@ -7,10 +7,7 @@ from transformers.models.musicflamingo import modeling_musicflamingo
 
 MODEL_ID = "nvidia/music-flamingo-2601-hf"
 PROMPT = "You are an expert music recommender. Evaluate whether you would recommend the given song to me based on my musical taste. My taste is:"
-OUTPUT_FORMAT = (
-    "Respond in exactly this format. 'Verdict: YES' or 'Verdict: NO' (YES only if I would like this song). No additional output permitted."
-)
-MAX_NEW_TOKENS = 16
+OUTPUT_FORMAT = "Respond with exactly one word: YES or NO (YES only if I would like this song)."
 
 # Explicit exclusions in the taste stay hard NOs at every level.
 STRICT_GUIDANCE = "Say YES only if the song closely fits my taste."
@@ -54,6 +51,13 @@ def _load():
     return processor, model
 
 
+@lru_cache(maxsize=1)
+def _get_answer_token_ids() -> tuple[int, int]:
+    tokenizer = _load()[0].tokenizer
+    yes_id, no_id = (tokenizer.encode(word, add_special_tokens=False)[0] for word in ("YES", "NO"))
+    return yes_id, no_id
+
+
 def analyze(audio_path: Path, taste: str, exploration: int) -> str:
     processor, model = _load()
     conversation = [
@@ -74,5 +78,11 @@ def analyze(audio_path: Path, taste: str, exploration: int) -> str:
     ).to(model.device)
     inputs["input_features"] = inputs["input_features"].to(model.dtype)
 
-    outputs = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=False)
-    return processor.batch_decode(outputs[:, inputs.input_ids.shape[1]:], skip_special_tokens=True)[0]
+    # Compute the probability of the next token being YES or NO and determine the verdict.
+    with torch.inference_mode():
+        next_token_logits = model(**inputs).logits[0, -1]
+    yes_id, no_id = _get_answer_token_ids()
+    yes_probability = torch.softmax(next_token_logits[[yes_id, no_id]].float(), dim=0)[0].item()
+    is_yes = yes_probability >= 0.5
+    confidence = yes_probability if is_yes else 1 - yes_probability
+    return f"Verdict: {'YES' if is_yes else 'NO'} ({confidence:.0%} confidence)"

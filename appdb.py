@@ -4,7 +4,7 @@ from db import connect
 
 DB_PATH = Path(__file__).parent / "app.db"
 
-SEED_TASTE = "Electronic, dance, 2010's indie rock/pop, synthpop, grunge, hip hop, rock, blues, bluegrass, melodic metal. No country, world, Christian, or children's music. My favorite artists are Tame Impala, Cherub, New Order, Opeth, BORNS, GROUPLOVE, The Black Keys, Glass Animals, Todd Terge, Mac Miller, Flume, The Cranberries. If songs have lyrics, they should be in English."
+SEED_TASTE = "Electronic, dance, 2010's indie rock/pop, synthpop, grunge, hip hop, rock, blues, bluegrass, melodic metal. No country, world, Christian, or children's music. My favorite artists are Tame Impala, Cherub, New Order, Opeth, BORNS, GROUPLOVE, The Black Keys, Glass Animals, Todd Terge, Mac Miller, Flume. If songs have lyrics, they should be in English."
 
 
 class AppDb:

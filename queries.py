@@ -14,10 +14,10 @@ MAX_NEW_TOKENS = 300
 TEMPERATURE = 0.9
 
 TIER_INSTRUCTIONS = {
-    "familiar": "a listed favorite artist or genre, or something very close to it",
-    "adjacent": "a neighboring genre or an artist from a related scene that is not named in my taste",
+    "familiar": "a listed favorite artist, or something very close to it",
+    "adjacent": "an artist from a related scene that is not named in my taste",
     "adventurous": (
-        "a genre or scene not named in my taste, chosen because it shares qualities I like "
+        "an artist not named in my taste, chosen because it shares qualities I like "
         "(mood, energy, production, vocal style)"
     ),
 }
@@ -67,7 +67,8 @@ def _build_prompt(taste: str, tiers: list[str]) -> str:
     return (
         f"My musical taste is: {taste}\n\n"
         f"Write {len(tiers)} search queries for finding songs on YouTube Music, one per line below. "
-        "Each query is an artist name or a few genre/style words, with no explanation. "
+        "Each query is an artist name with no explanation. "
+        "Recommend artists, not specific songs or genres.\n"
         "Never go against the exclusions in my taste.\n"
         f"{lines}\n\n"
         f"Respond with only a JSON array of {len(tiers)} strings, in the same order."
@@ -105,6 +106,7 @@ def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuer
     """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
     tiers = allocate_tiers(n, exploration)
     text = _generate_text(_build_prompt(taste, tiers))
+    print(text)
     unload_model()
 
     generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]
