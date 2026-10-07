@@ -1,5 +1,6 @@
 yt-dlp
 torch
+mlx-audio
 transformers
 accelerate
 fastapi
