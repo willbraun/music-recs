@@ -61,6 +61,7 @@ Event shapes come from `run` in [pipeline.py](../api/pipeline.py). The status te
 | `started`           | "Reading your taste..."                 | Stores `count`                                                    |
 | `downloading_model` | "Downloading model (first run only)..." | None                                                              |
 | `queries`           | "Searching..."                          | None                                                              |
+| `seeding`           | "Learning your taste in {artist}..."    | None                                                              |
 | `fetching`          | "Finding songs..."                      | None                                                              |
 | `analyzing`         | "Listening to {title} by {artist}..."   | Adds a loading card for the song at the right end of the carousel |
 | `scored`            | "Found {recommended} of {count}"        | See below                                                         |

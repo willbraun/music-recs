@@ -44,6 +44,15 @@ form {
 	margin: 1rem 0;
 }
 
+form.stacked {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+textarea {
+	font: inherit;
+}
+
 label {
 	display: flex;
 	flex-direction: column;
@@ -56,7 +65,8 @@ input[name='count'] {
 }
 
 #status.error,
-#history-status.error {
+#history-status.error,
+#taste-status.error {
 	color: #c0392b;
 }
 

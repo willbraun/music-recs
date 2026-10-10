@@ -39,7 +39,7 @@ One row per analyzed song. Songs are permanent, since `feedback` refers to them.
 - `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first and would fail on a rated song. It also writes the song's `song_embeddings` row in the same transaction.
 - `AppDb.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
 - How the display columns are filled is described in [artwork.md](artwork.md).
-- Every analyzed song is stored, recommended or not.
+- Every analyzed song is stored, recommended or not. Songs analyzed to seed a liked artist ([scoring.md](scoring.md#seeding-liked-artists)) are stored the same way, with the artist as their `query`.
 
 `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` are planned in [artwork.md](artwork.md) and are not in the schema yet. They arrive in a later migration.
 
@@ -68,7 +68,7 @@ One audio embedding per analyzed song, written with the song by `AppDb.add_song`
 | `embedding`  | BLOB | NOT NULL                                  | Little-endian float32 values, L2-normalized, read with `numpy.frombuffer` |
 | `created_at` | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP       | When the embedding was computed                                           |
 
-- The scorer ignores rows whose `model` is not the current one.
+- The scorer ignores rows whose `model` is not the current one. `AppDb.get_artist_embeddings` reads every current-model embedding with its artist, leaving out songs the user disliked, to build the artist anchor.
 - Nothing else needs an index or a vector extension. All embeddings are loaded into memory when needed.
 
 ## `feedback`

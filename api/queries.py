@@ -3,6 +3,7 @@ import json
 import math
 import random
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -12,6 +13,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
 MAX_NEW_TOKENS = 300
 TEMPERATURE = 0.9
+RECENT_LIKES = 10
 
 TIER_INSTRUCTIONS = {
     "familiar": "a listed favorite artist, or something very close to it",
@@ -21,8 +23,6 @@ TIER_INSTRUCTIONS = {
         "(mood, energy, production, vocal style)"
     ),
 }
-
-_FAVORITE_ARTISTS = re.compile(r"favorite artists are (.+?)\.(?:\s|$)", re.IGNORECASE)
 
 
 @dataclass
@@ -62,10 +62,13 @@ def unload_model() -> None:
         torch.mps.empty_cache()
 
 
-def _build_prompt(taste: str, tiers: list[str]) -> str:
+def _build_prompt(taste: str, tiers: list[str], recent_likes: Sequence[tuple[str, str]] = ()) -> str:
     lines = "\n".join(f"{i}. {TIER_INSTRUCTIONS[tier]}" for i, tier in enumerate(tiers, 1))
+    liked_songs = "".join(f"- {artist} - {title}\n" for artist, title in recent_likes)
+    recent = f"Songs I liked recently:\n{liked_songs}\n" if liked_songs else ""
     return (
         f"My musical taste is: {taste}\n\n"
+        f"{recent}"
         f"Write {len(tiers)} search queries for finding songs on YouTube Music, one per line below. "
         "Each query is an artist name with no explanation. "
         "Recommend artists, not specific songs or genres.\n"
@@ -86,10 +89,11 @@ def _parse(text: str) -> list[str]:
     return [item.strip() for item in items if isinstance(item, str) and item.strip()]
 
 
-def _get_fallback_queries(taste: str) -> list[str]:
-    match = _FAVORITE_ARTISTS.search(taste)
-    artists = [a.strip() for a in match.group(1).split(",") if a.strip()] if match else []
-    return artists or [taste[:100]]
+def _get_fallback_queries(taste: str, liked_artists: Sequence[str], recent_likes: Sequence[tuple[str, str]]) -> list[str]:
+    pool: dict[str, str] = {}
+    for artist in [*liked_artists, *(artist for artist, _ in recent_likes)]:
+        pool.setdefault(artist.casefold(), artist)
+    return list(pool.values()) or [taste[:100]]
 
 
 def _generate_text(prompt: str) -> str:
@@ -102,15 +106,24 @@ def _generate_text(prompt: str) -> str:
     return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
-def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuery]:
-    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
+def generate_queries(
+    taste: str,
+    exploration: int,
+    n: int,
+    liked_artists: Sequence[str] = (),
+    recent_likes: Sequence[tuple[str, str]] = (),
+) -> list[GeneratedQuery]:
+    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100).
+
+    `recent_likes` are (artist, title) pairs; their artists and `liked_artists` are the familiar fallback queries.
+    """
     tiers = allocate_tiers(n, exploration)
-    text = _generate_text(_build_prompt(taste, tiers))
+    text = _generate_text(_build_prompt(taste, tiers, recent_likes))
     unload_model()
 
     generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]
     # Pad with taste-derived queries when the model returned too few.
-    fallback = _get_fallback_queries(taste)
+    fallback = _get_fallback_queries(taste, liked_artists, recent_likes)
     random.shuffle(fallback)
     for i in range(len(generated), n):
         generated.append(GeneratedQuery(fallback[i % len(fallback)], "familiar"))

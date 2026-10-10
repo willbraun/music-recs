@@ -12,6 +12,7 @@
 			<nav>
 				<button type="button" data-view="run" class="active">Run</button>
 				<button type="button" data-view="history">History</button>
+				<button type="button" data-view="taste">Taste</button>
 			</nav>
 		</header>
 
@@ -19,7 +20,8 @@
 			<section id="run">
 				<form id="run-form">
 					<label>Query <input name="query" maxlength="200" placeholder="Leave blank to generate queries" /></label>
-					<label>Recommendations
+					<label
+						>Recommendations
 						<input name="count" type="number" min="1" max="50" value="3" required />
 					</label>
 					<label>
@@ -33,12 +35,45 @@
 				<ul id="results" class="songs"></ul>
 			</section>
 
+			<section id="taste" hidden>
+				<p id="taste-intro" hidden>Tell us what you like to get started.</p>
+				<form id="taste-form" class="stacked">
+					<label
+						>Liked genres (required, comma-separated)
+						<input name="liked_genres" placeholder="Electronic, Indie rock" required />
+					</label>
+					<label
+						>Liked artists (comma-separated)
+						<input name="liked_artists" placeholder="Tame Impala, Flume" />
+					</label>
+					<label
+						>Disliked genres (comma-separated)
+						<input name="disliked_genres" placeholder="Country" />
+					</label>
+					<label
+						>Disliked artists (comma-separated)
+						<input name="disliked_artists" />
+					</label>
+					<label
+						>Notes
+						<textarea
+							name="notes"
+							rows="3"
+							maxlength="2000"
+							placeholder="Anything else, e.g. moods, eras, instruments"
+						></textarea>
+					</label>
+					<button type="submit">Save taste</button>
+				</form>
+				<p id="taste-status" role="status"></p>
+			</section>
+
 			<section id="history" hidden>
 				<p id="history-status" role="status"></p>
 				<ul id="history-list" class="songs"></ul>
 			</section>
 		</main>
 
-		<script src="app.js"></script>
+		<script src="app.js?v=2"></script>
 	</body>
 </html>

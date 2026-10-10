@@ -13,14 +13,21 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    appdb = AppDb()
+    if appdb.get_current_taste() is None:
+        print("No taste set. Open the app to set one.")
+        return
+
     results = []
     analyzed = 0
-    for event in run(args.query, args.count, args.exploration, AppDb()):
+    for event in run(args.query, args.count, args.exploration, appdb):
         if event["type"] == "queries":
             for q in event["queries"]:
                 print(f"Query ({q['tier']}): {q['query']}", flush=True)
         elif event["type"] == "downloading_model":
             print(f"Downloading model {event['model']}...", flush=True)
+        elif event["type"] == "seeding":
+            print(f"Learning songs by {event['artist']}...", flush=True)
         elif event["type"] == "fetching":
             print("Fetching songs...", flush=True)
         elif event["type"] == "analyzing":

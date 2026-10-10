@@ -8,7 +8,14 @@ const statusEl = document.getElementById('status')
 const resultsEl = document.getElementById('results')
 const historyStatusEl = document.getElementById('history-status')
 const historyListEl = document.getElementById('history-list')
+const tasteForm = document.getElementById('taste-form')
+const tasteIntroEl = document.getElementById('taste-intro')
+const tasteStatusEl = document.getElementById('taste-status')
+const LIST_FIELDS = ['liked_genres', 'liked_artists', 'disliked_genres', 'disliked_artists']
+const HISTORY_PAGE_SIZE = 100
 let requestedCount = 0
+let hasTaste = false
+let tasteLoaded = false
 
 // Text goes in via textContent only: titles and descriptions come from YouTube and a model.
 function createElement(tag, props = {}, ...children) {
@@ -34,11 +41,50 @@ function createSongItem(song, meta = '') {
 		{ className: song.recommended ? 'recommended' : '' },
 		createSongLink(song),
 		createElement('span', { className: 'meta' }, meta),
-		createElement('details', {}, createElement('summary', {}, 'Description'), createElement('p', {}, song.description)),
 	)
 }
 
+function parseList(text) {
+	return text
+		.split(',')
+		.map(item => item.trim())
+		.filter(Boolean)
+}
+
+function fillTasteForm(profile) {
+	for (const field of LIST_FIELDS) tasteForm[field].value = (profile?.[field] ?? []).join(', ')
+	tasteForm.notes.value = profile?.notes ?? ''
+}
+
+async function readError(res) {
+	const body = await res.json().catch(() => null)
+	return typeof body?.detail === 'string' ? body.detail : `Request failed (${res.status})`
+}
+
+async function loadTaste() {
+	setStatus(tasteStatusEl, 'Loading...')
+	tasteForm.querySelector('button').disabled = true
+	try {
+		const res = await fetch(`${API_BASE}/api/taste`)
+		if (!res.ok) throw new Error(await readError(res))
+		const taste = await res.json()
+		tasteLoaded = true
+		hasTaste = taste !== null
+		fillTasteForm(taste?.profile)
+		setStatus(tasteStatusEl, '')
+		tasteForm.querySelector('button').disabled = false
+		tasteIntroEl.hidden = hasTaste
+		if (!hasTaste) showView('taste')
+	} catch (e) {
+		setStatus(tasteStatusEl, `Could not load taste: ${e.message}`, true)
+	}
+}
+
 function showView(name) {
+	if (!hasTaste && name !== 'taste') {
+		name = 'taste'
+		tasteIntroEl.hidden = false
+	}
 	for (const button of document.querySelectorAll('nav button')) {
 		button.classList.toggle('active', button.dataset.view === name)
 	}
@@ -46,20 +92,29 @@ function showView(name) {
 		section.hidden = section.id !== name
 	}
 	if (name === 'history') loadHistory()
+	// Retry a failed first load so the form never shows blanks that a save would write over the real taste.
+	if (name === 'taste' && !tasteLoaded) loadTaste()
 }
 
 async function loadHistory() {
 	setStatus(historyStatusEl, 'Loading...')
 	try {
-		const res = await fetch(`${API_BASE}/api/songs`)
-		if (!res.ok) throw new Error(`Request failed (${res.status})`)
-		const songs = await res.json()
-		setStatus(historyStatusEl, songs.length ? `${songs.length} analyzed songs` : 'No songs analyzed yet.')
+		const res = await fetch(`${API_BASE}/api/songs?page_size=${HISTORY_PAGE_SIZE}`)
+		if (!res.ok) throw new Error(await readError(res))
+		const { items, total } = await res.json()
+		setStatus(
+			historyStatusEl,
+			total === 0
+				? 'No songs analyzed yet.'
+				: `${total} analyzed songs${total > items.length ? ` (showing the newest ${items.length})` : ''}`,
+		)
 		historyListEl.replaceChildren(
-			...songs.map(song => {
-				const taste = song.taste_version == null ? null : `taste v${song.taste_version}`
-				return createSongItem(song, [song.query, taste, `${song.analyzed_at} UTC`].filter(Boolean).join(' · '))
-			}),
+			...items.map(song =>
+				createSongItem(
+					song,
+					[`score ${song.score.toFixed(2)}`, song.query, `${song.analyzed_at} UTC`].filter(Boolean).join(' · '),
+				),
+			),
 		)
 	} catch (e) {
 		setStatus(historyStatusEl, `Could not load history: ${e.message}`, true)
@@ -81,10 +136,11 @@ function handleEvent(event) {
 			requestedCount = event.count
 			setStatus(
 				statusEl,
-				event.query
-					? `Searching "${event.query}" (taste v${event.taste_version})...`
-					: `Generating queries (exploration ${event.exploration}%, taste v${event.taste_version})...`,
+				event.query ? `Searching "${event.query}"...` : `Generating queries (exploration ${event.exploration}%)...`,
 			)
+			break
+		case 'seeding':
+			setStatus(statusEl, `Learning songs by ${event.artist}...`)
 			break
 		case 'queries':
 			setStatus(statusEl, `Queries: ${event.queries.map(q => `${q.query} (${q.tier})`).join(', ')}`)
@@ -149,11 +205,39 @@ runForm.addEventListener('submit', async submitEvent => {
 				exploration: Number(runForm.exploration.value),
 			}),
 		})
-		if (!res.ok) throw new Error(`Request failed (${res.status})`)
+		if (!res.ok) throw new Error(await readError(res))
 		streamRun((await res.json()).id)
 	} catch (e) {
 		setStatus(statusEl, `Could not start run: ${e.message}`, true)
 		runButton.disabled = false
+	}
+})
+
+tasteForm.addEventListener('submit', async submitEvent => {
+	submitEvent.preventDefault()
+	const saveButton = tasteForm.querySelector('button')
+	saveButton.disabled = true
+	setStatus(tasteStatusEl, 'Saving...')
+	const profile = { notes: tasteForm.notes.value }
+	for (const field of LIST_FIELDS) profile[field] = parseList(tasteForm[field].value)
+	try {
+		const res = await fetch(`${API_BASE}/api/taste`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ profile }),
+		})
+		if (!res.ok) throw new Error(await readError(res))
+		const saved = await res.json()
+		fillTasteForm(saved.profile)
+		const wasSetup = !hasTaste
+		hasTaste = true
+		tasteIntroEl.hidden = true
+		setStatus(tasteStatusEl, 'Taste saved.')
+		if (wasSetup) showView('run')
+	} catch (e) {
+		setStatus(tasteStatusEl, `Could not save taste: ${e.message}`, true)
+	} finally {
+		saveButton.disabled = false
 	}
 })
 
@@ -164,3 +248,5 @@ for (const button of document.querySelectorAll('nav button')) {
 runForm.exploration.addEventListener('input', () => {
 	explorationValueEl.textContent = runForm.exploration.value
 })
+
+loadTaste()

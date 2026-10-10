@@ -46,14 +46,28 @@ def test_build_prompt_lists_each_tier_in_order() -> None:
     assert "JSON array of 2 strings" in prompt
 
 
-def test_get_fallback_queries_uses_favorite_artists() -> None:
-    taste = "Rock, blues. My favorite artists are Tame Impala, Flume, Mac Miller. English only."
+def test_build_prompt_includes_recent_liked_songs() -> None:
+    prompt = queries._build_prompt("indie rock", ["familiar"], [("Cherub", "Doses & Mimosas"), ("Flume", "Never Be Like You")])
 
-    assert queries._get_fallback_queries(taste) == ["Tame Impala", "Flume", "Mac Miller"]
+    assert "Songs I liked recently:\n- Cherub - Doses & Mimosas\n- Flume - Never Be Like You\n" in prompt
+
+
+def test_build_prompt_omits_recent_likes_when_there_are_none() -> None:
+    assert "liked recently" not in queries._build_prompt("indie rock", ["familiar"])
+
+
+def test_get_fallback_queries_uses_liked_artists_and_recent_like_artists() -> None:
+    result = queries._get_fallback_queries("taste", ["Tame Impala", "Flume"], [("flume", "Song"), ("Cherub", "Song")])
+
+    assert result == ["Tame Impala", "Flume", "Cherub"]
+
+
+def test_get_fallback_queries_keeps_names_with_commas() -> None:
+    assert queries._get_fallback_queries("taste", ["Earth, Wind & Fire"], []) == ["Earth, Wind & Fire"]
 
 
 def test_get_fallback_queries_truncates_taste_without_artists() -> None:
-    assert queries._get_fallback_queries("x" * 150) == ["x" * 100]
+    assert queries._get_fallback_queries("x" * 150, [], []) == ["x" * 100]
 
 
 @pytest.fixture
@@ -76,9 +90,8 @@ def test_generate_queries_pads_with_fallback_when_model_returns_too_few(
     monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]
 ) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
-    taste = "My favorite artists are Flume. Done."
 
-    result = generate_queries(taste, 100, 3)
+    result = generate_queries("taste", 100, 3, ["Flume"])
 
     assert result == [GeneratedQuery("Flume", "familiar")] * 3
 

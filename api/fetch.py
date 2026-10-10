@@ -1,5 +1,6 @@
 import re
 from collections import deque
+from collections.abc import Collection
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,7 +10,8 @@ from urllib.parse import quote_plus
 import yt_dlp
 from yt_dlp.utils import DownloadError
 
-CLIP_SECONDS = 45
+CLIP_SECONDS = 40
+SAMPLE_RATE = 24000
 MIN_DURATION = 90
 MAX_DURATION = 480
 MIN_VIEWS = 1000
@@ -37,6 +39,13 @@ class Song:
     artist: str
     url: str
     clip_path: Path
+
+
+def is_artist_match(song_artist: str, name: str) -> bool:
+    """Whether `name` is the song's artist or one of several, ignoring case ("A, B", "A / B", "A & B")."""
+    wanted = name.casefold()
+    parts = re.split(r"\s*[,/&]\s*", song_artist.casefold())
+    return wanted == song_artist.casefold() or wanted in parts
 
 
 def _get_qualifiers(title: str) -> str:
@@ -83,8 +92,16 @@ def _select_middle_clip(info: dict, _ydl) -> list[dict]:
     return [{"start_time": start, "end_time": start + CLIP_SECONDS}]
 
 
-def _download_song(video_id: str, workdir: Path) -> Song | None:
-    """Fetch metadata and, for studio songs, download the clip; None if rejected or failed."""
+def _download_song(
+    video_id: str,
+    workdir: Path,
+    disliked_artists: frozenset[str] = frozenset(),
+    required_artist: str | None = None,
+) -> Song | None:
+    """Fetch metadata and, for studio songs, download the clip; None if rejected or failed.
+
+    `disliked_artists` holds casefolded names. With `required_artist`, other artists' songs are rejected.
+    """
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -93,6 +110,7 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
         "download_ranges": _select_middle_clip,
         "force_keyframes_at_cuts": True,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
+        "postprocessor_args": {"extractaudio": ["-ar", str(SAMPLE_RATE), "-ac", "1"]},
     }
     url = f"https://www.youtube.com/watch?v={video_id}"
     for attempt in range(DOWNLOAD_ATTEMPTS):
@@ -100,7 +118,9 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
             # YoutubeDL instances aren't thread-safe, so each task gets its own.
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                if not _is_studio(info):
+                if not _is_studio(info) or info["artist"].casefold() in disliked_artists:
+                    return None
+                if required_artist is not None and not is_artist_match(info["artist"], required_artist):
                     return None
                 ydl.process_ie_result(info, download=True)
             break
@@ -113,12 +133,20 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
 
 
 def fetch_songs(
-    query: str, count: int, skip_ids: set[str], workdir: Path
+    query: str,
+    count: int,
+    skip_ids: set[str],
+    workdir: Path,
+    disliked_artists: Collection[str] = (),
+    required_artist: str | None = None,
 ) -> Iterator[Song]:
     """Yield up to `count` studio-song audio clips; record considered ids in `skip_ids`.
 
+    Songs by a disliked artist (ignoring case) are rejected before their clip is downloaded.
+    With `required_artist`, only that artist's songs are kept.
     Up to DOWNLOAD_WORKERS candidates are fetched ahead of the consumer, in search order.
     """
+    disliked = frozenset(artist.casefold() for artist in disliked_artists)
     candidates = iter([e for e in _search(query, count * OVERFETCH) if e["id"] not in skip_ids])
     pending: deque[Future[Song | None]] = deque()
     yielded = 0
@@ -127,7 +155,7 @@ def fetch_songs(
             while yielded < count:
                 while len(pending) < DOWNLOAD_WORKERS and (entry := next(candidates, None)):
                     skip_ids.add(entry["id"])
-                    pending.append(pool.submit(_download_song, entry["id"], workdir))
+                    pending.append(pool.submit(_download_song, entry["id"], workdir, disliked, required_artist))
                 if not pending:
                     return
                 song = pending.popleft().result()

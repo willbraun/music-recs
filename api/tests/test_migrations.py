@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from appdb import SEED_TASTE, AppDb
+from appdb import AppDb
 from migrate import apply_migrations
 
 
@@ -24,24 +24,23 @@ def _app_tables(path: Path) -> set[str]:
     return {r["name"] for r in rows}
 
 
-def test_fresh_database_is_migrated_and_seeded(tmp_path: Path) -> None:
+def test_fresh_database_has_the_schema_and_an_empty_taste(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
-    AppDb(path)
+    db = AppDb(path)
 
     assert _versions(path) == [20261010120000]
-    assert AppDb(path).get_current_taste() == (1, SEED_TASTE)
-    assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
+    assert _app_tables(path) == {"songs", "taste", "song_embeddings", "feedback"}
+    assert db.get_current_taste() is None
 
 
 def test_reopening_is_a_no_op(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     db = AppDb(path)
-    db.add_song("abc", "Title", "Artist", "u", "Verdict: YES (90% confidence)", "q", 1)
+    db.add_song("abc", "Title", "Artist", "u", 0.9, True, "q", [1.0], "m")
 
     AppDb(path)
 
     assert db.get_seen_ids() == {"abc"}
-    assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
 
 
 def test_failed_migration_rolls_back_and_keeps_version(tmp_path: Path) -> None:

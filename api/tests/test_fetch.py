@@ -99,7 +99,7 @@ def test_search_filters_non_studio_and_ai_titles(monkeypatch: pytest.MonkeyPatch
 
 
 def test_select_middle_clip_centers_the_clip() -> None:
-    assert fetch._select_middle_clip({"duration": 200}, None) == [{"start_time": 77.5, "end_time": 122.5}]
+    assert fetch._select_middle_clip({"duration": 200}, None) == [{"start_time": 80.0, "end_time": 120.0}]
 
 
 def test_select_middle_clip_starts_at_zero_for_short_tracks() -> None:
@@ -116,12 +116,64 @@ def test_download_song_returns_song_for_studio_track(monkeypatch: pytest.MonkeyP
     assert ydl.downloaded
 
 
+def test_download_song_requests_24khz_mono_wav(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: dict = {}
+
+    def make_ydl(opts: dict) -> _FakeYoutubeDL:
+        seen.update(opts)
+        return _FakeYoutubeDL(opts, _info())
+
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", make_ydl)
+
+    fetch._download_song("abc", tmp_path)
+
+    assert seen["postprocessor_args"] == {"extractaudio": ["-ar", "24000", "-ac", "1"]}
+
+
+def test_download_song_rejects_disliked_artist_before_downloading(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ydl = _FakeYoutubeDL({}, _info(artist="Nickelback"))
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    assert fetch._download_song("abc", tmp_path, frozenset({"nickelback"})) is None
+    assert not ydl.downloaded
+
+
 def test_download_song_skips_non_studio_without_downloading(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     ydl = _FakeYoutubeDL({}, _info(duration=10))
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
 
     assert fetch._download_song("abc", tmp_path) is None
     assert not ydl.downloaded
+
+
+@pytest.mark.parametrize(
+    ("song_artist", "name", "expected"),
+    [
+        ("Tame Impala", "tame impala", True),
+        ("Justice, Tame Impala", "Tame Impala", True),
+        ("Tame Impala / テーム インパラ", "Tame Impala", True),
+        ("Earth, Wind & Fire", "Earth, Wind & Fire", True),
+        ("Tame Impalas", "Tame Impala", False),
+        ("Flume", "Tame Impala", False),
+    ],
+)
+def test_is_artist_match(song_artist: str, name: str, expected: bool) -> None:
+    assert fetch.is_artist_match(song_artist, name) is expected
+
+
+def test_download_song_rejects_other_artists_when_an_artist_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ydl = _FakeYoutubeDL({}, _info(artist="Cover Band"))
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    assert fetch._download_song("abc", tmp_path, required_artist="Artist") is None
+    assert not ydl.downloaded
+
+
+def test_download_song_keeps_the_required_artist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ydl = _FakeYoutubeDL({}, _info(artist="Other, Artist"))
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    assert fetch._download_song("abc", tmp_path, required_artist="artist") is not None
 
 
 def test_download_song_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -143,7 +195,9 @@ def _stub_fetching(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ids: list[st
     monkeypatch.setattr(
         fetch,
         "_download_song",
-        lambda video_id, workdir: None if video_id in rejected else Song(video_id, "t", "a", "u", tmp_path / video_id),
+        lambda video_id, workdir, disliked=frozenset(), required=None: (
+            None if video_id in rejected else Song(video_id, "t", "a", "u", tmp_path / video_id)
+        ),
     )
 
 
@@ -164,6 +218,32 @@ def test_fetch_songs_skips_known_and_rejected_ids(monkeypatch: pytest.MonkeyPatc
     assert [s.video_id for s in songs] == ["b", "d"]
     # Every considered id is recorded so later searches don't repeat it.
     assert {"a", "b", "c", "d"} <= skip_ids
+
+
+def test_fetch_songs_casefolds_disliked_artists_for_the_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    received: list = []
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": "a"}])
+
+    def fake_download(video_id: str, workdir: Path, disliked: frozenset[str], required: str | None) -> None:
+        received.append(disliked)
+
+    monkeypatch.setattr(fetch, "_download_song", fake_download)
+
+    assert list(fetch_songs("q", 1, set(), tmp_path, ["NickelBack"])) == []
+    assert received == [frozenset({"nickelback"})]
+
+
+def test_fetch_songs_passes_the_required_artist_to_the_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    received: list = []
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": "a"}])
+
+    def fake_download(video_id: str, workdir: Path, disliked: frozenset[str], required: str | None) -> None:
+        received.append(required)
+
+    monkeypatch.setattr(fetch, "_download_song", fake_download)
+
+    assert list(fetch_songs("q", 1, set(), tmp_path, required_artist="Flume")) == []
+    assert received == ["Flume"]
 
 
 def test_fetch_songs_returns_nothing_when_no_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

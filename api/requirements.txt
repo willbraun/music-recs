@@ -1,6 +1,9 @@
 yt-dlp
 torch
-transformers
+transformers<5
 accelerate
 fastapi
 uvicorn
+muq
+numpy
+scikit-learn

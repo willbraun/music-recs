@@ -2,7 +2,7 @@
 
 Status: planned, not implemented.
 
-The user describes their taste once, before the first run, and can change it later. The taste is entered as structured fields and saved in the single-row `taste` table. Its genres are the text prior of the [scoring](scoring.md#taste-prior), its liked artists and genres, rendered as one text string, feed query generation, and its disliked artists are skipped before scoring ([scoring.md](scoring.md#pipeline)). This replaces the hardcoded `SEED_TASTE` in [appdb.py](../api/appdb.py).
+The user describes their taste once, before the first run, and can change it later. The taste is entered as structured fields and saved in the single-row `taste` table. Its genres are the text prior of the [scoring](scoring.md#taste-prior), its liked artists seed the audio-based [artist prior](scoring.md#artist-prior), its liked artists and genres, rendered as one text string, feed query generation, and its disliked artists are skipped before scoring ([scoring.md](scoring.md#pipeline)). This replaces the hardcoded `SEED_TASTE` in [appdb.py](../api/appdb.py).
 
 Related: [database.md](database.md#taste), [frontend.md](frontend.md), [home.md](home.md), [scoring.md](scoring.md).
 
@@ -15,13 +15,13 @@ The taste is user-owned and only changes when the user saves the form. Ratings n
 
 ## Fields
 
-| Field              | UI                    | Required | Meaning                              |
-| ------------------ | --------------------- | -------- | ------------------------------------ |
-| `liked_genres`     | Multi-select combobox | Yes      | Genres the user likes (at least one) |
-| `liked_artists`    | Tag input             | No       | Artists the user likes, for search   |
-| `disliked_genres`  | Multi-select combobox | No       | Genres to score lower                |
-| `disliked_artists` | Tag input             | No       | Artists never to recommend           |
-| `notes`            | Textarea              | No       | Free text, see [Notes](#notes)       |
+| Field              | UI                    | Required | Meaning                                        |
+| ------------------ | --------------------- | -------- | ---------------------------------------------- |
+| `liked_genres`     | Multi-select combobox | Yes      | Genres the user likes (at least one)           |
+| `liked_artists`    | Tag input             | No       | Artists the user likes, for search and scoring |
+| `disliked_genres`  | Multi-select combobox | No       | Genres to score lower                          |
+| `disliked_artists` | Tag input             | No       | Artists never to recommend                     |
+| `notes`            | Textarea              | No       | Free text, see [Notes](#notes)                 |
 
 ### Rules
 

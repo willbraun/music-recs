@@ -5,16 +5,16 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Iterator
+from typing import Annotated, Iterator, Literal
 
 import uvicorn
-from appdb import AppDb
-from fastapi import FastAPI, Header, HTTPException, Request
+from appdb import AppDb, SortOrder, Taste
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pipeline import run
 from pydantic import BaseModel, Field, StringConstraints
-from recommend import get_verdict
+from taste_profile import TasteProfile, normalize_profile
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 KEEPALIVE_SECONDS = 15
@@ -24,6 +24,27 @@ class RunRequest(BaseModel):
     query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
     count: int = Field(3, ge=1, le=50)
     exploration: int = Field(50, ge=0, le=100)
+
+
+class TasteRequest(BaseModel):
+    profile: TasteProfile
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal[1, -1]
+
+
+def _format_taste(taste: Taste) -> dict:
+    return {"profile": taste.profile.model_dump(), "updated_at": taste.updated_at}
+
+
+class RevalidatedStaticFiles(StaticFiles):
+    """Without Cache-Control, browsers heuristically cache files and keep running an old app.js after an edit."""
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 @dataclass
@@ -88,6 +109,8 @@ app = FastAPI(lifespan=manage_lifespan)
 
 @app.post("/api/runs", status_code=202)
 def start_run(body: RunRequest, request: Request) -> dict:
+    if request.app.state.appdb.get_current_taste() is None:
+        raise HTTPException(status_code=409, detail="Set your taste first")
     job = Job(body)
     run_id = uuid.uuid4().hex
     request.app.state.jobs[run_id] = job
@@ -105,13 +128,53 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
 
 
 @app.get("/api/songs")
-def list_songs(request: Request) -> list[dict]:
-    songs = request.app.state.appdb.list_songs()
-    return [{**song, "recommended": get_verdict(song["description"]) is True} for song in songs]
+def list_songs(
+    request: Request,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 24,
+    recommended: bool | None = None,
+    q: Annotated[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None, Query()
+    ] = None,
+    sort: SortOrder = "newest",
+) -> dict:
+    appdb: AppDb = request.app.state.appdb
+    items = appdb.list_songs(recommended, q, sort, page_size, (page - 1) * page_size)
+    return {"items": items, "total": appdb.count_songs(recommended, q), "page": page, "page_size": page_size}
+
+
+@app.put("/api/songs/{video_id}/feedback")
+def put_feedback(video_id: str, body: FeedbackRequest, request: Request) -> dict:
+    feedback = request.app.state.appdb.set_feedback(video_id, body.rating)
+    if feedback is None:
+        raise HTTPException(status_code=404, detail="Unknown song")
+    return feedback
+
+
+@app.delete("/api/songs/{video_id}/feedback", status_code=204)
+def delete_feedback(video_id: str, request: Request) -> Response:
+    if not request.app.state.appdb.clear_feedback(video_id):
+        raise HTTPException(status_code=404, detail="Unknown song")
+    return Response(status_code=204)
+
+
+@app.get("/api/taste")
+def get_taste(request: Request) -> dict | None:
+    taste = request.app.state.appdb.get_current_taste()
+    return None if taste is None else _format_taste(taste)
+
+
+@app.put("/api/taste")
+def put_taste(body: TasteRequest, request: Request) -> dict:
+    try:
+        profile = normalize_profile(body.profile)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return _format_taste(request.app.state.appdb.save_taste(profile))
 
 
 # Mounted last so it never shadows the /api routes.
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+app.mount("/", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 if __name__ == "__main__":
