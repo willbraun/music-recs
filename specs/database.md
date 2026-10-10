@@ -6,9 +6,9 @@ The app uses one SQLite file, `api/app.db`, accessed through `AppDb` in [appdb.p
 
 The schema is versioned by numbered SQL files in [api/migrations/](../api/migrations/), applied by [migrate.py](../api/migrate.py) when `AppDb` is constructed.
 
-- Files are named `NNNN_name.sql`, numbered in order with no gaps. The file number is the schema version, stored in `PRAGMA user_version`.
-- On startup each file newer than the stored version runs in one transaction together with the version bump, so a failed migration leaves the database at the previous version. Files must not contain `BEGIN` or `COMMIT`.
-- A database whose version is newer than the newest file is rejected.
+- Files are named `YYYYMMDDHHMMSS_name.sql`, with a unique UTC timestamp. The timestamp is the migration's version. Applied versions are recorded in the `schema_migrations` table (`PRAGMA user_version` is a 32-bit integer and cannot hold a timestamp), and files run in timestamp order.
+- Each file not yet recorded in `schema_migrations` runs in one transaction together with its record, so a failed migration leaves the database unchanged. Files must not contain `BEGIN` or `COMMIT`.
+- A database that has recorded a migration with no matching file is rejected.
 - To change the schema, add the next numbered file. Never edit one that has been applied.
 - SQLite cannot alter a constraint in place, so changing one means creating a new table, copying rows, dropping the old table, and renaming.
 - The database uses WAL mode, so `app.db-wal` and `app.db-shm` appear next to it.
@@ -17,7 +17,7 @@ The schema is versioned by numbered SQL files in [api/migrations/](../api/migrat
 
 The schema below replaces the original one (`taste_versions`, `songs.taste_version`, `songs.description`, `feedback.note`). No data is carried over. The existing `app.db` is deleted once, together with `app.db-wal` and `app.db-shm`, and the new database is created from migrations on first start.
 
-- `0001_initial.sql` is rewritten to create the schema in this document. This is allowed only because no database with the old `0001` is kept.
+- `20261010120000_initial.sql` is rewritten to create the schema in this document. This is allowed only because no database with the old `0001` is kept.
 - The user enters their taste again ([taste.md](taste.md#first-run)), and songs and ratings start empty.
 - After the reset, applied migrations are never edited.
 
