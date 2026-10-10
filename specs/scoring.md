@@ -64,7 +64,7 @@ In `api/scorer.py`.
 | `PRIOR_MID`         | measure | Prior similarity that maps to 0.5                          |
 | `PRIOR_SCALE`       | measure | Spread of the prior's sigmoid                              |
 
-`PRIOR_MID` and `PRIOR_SCALE` are set once by measuring the prior similarity on the [backfilled](#existing-songs) songs, then fixed. The thresholds are starting values to adjust by hand against real recommendations.
+`PRIOR_MID` and `PRIOR_SCALE` are set once by measuring the prior similarity on a sample of analyzed songs, then fixed. The thresholds are starting values to adjust by hand against real recommendations.
 
 ## Rating songs
 
@@ -85,14 +85,11 @@ A rating is only a like or a dislike, with no note or reason. Saving is an upser
 
 1. Load the taste, build the scorer, and read the seen ids.
 2. Use the given query, or generate queries.
-3. Download clips, and for each one embed it, score it, store the song with its embedding (recommended or not), and delete the clip.
-4. Send a `scored` event with `score` and `recommended`. Stop once `count` songs are recommended.
+3. Search and download clips. `fetch_songs` rejects a candidate whose artist is in the taste's `disliked_artists` (ignoring case) with its other metadata checks, before its clip is downloaded. Rejected songs are not stored.
+4. For each clip, embed it, score it, store the song with its embedding (recommended or not), and delete the clip.
+5. Send a `scored` event with `score` and `recommended`. Stop once `count` songs are recommended.
 
 `downloading_model` is sent for the embedding model and the query model only. `recommend.py` and `get_verdict` are removed, since there is no verdict string.
-
-## Existing songs
-
-Clips are not kept, so existing rated songs have no embeddings. `api/backfill_embeddings.py` is a CLI that, for each rated song without an embedding, downloads its clip with the same fetch code, embeds it, stores the embedding, and deletes the clip. Songs that no longer download are skipped and reported. Unrated songs are not backfilled, since only rated songs train the head.
 
 ## Tests
 
@@ -101,6 +98,7 @@ Clips are not kept, so existing rated songs have no embeddings. `api/backfill_em
 - `AppDb`: `add_song` writes the song and its embedding together, an embedding round-trips unchanged, and rated embeddings come back with their ratings.
 - Pipeline: every analyzed song is stored with its embedding and `recommended`, clips are deleted after embedding, the run stops after `count` recommendations, and `scored` carries `score`.
 - Queries: recent liked songs appear in the prompt, and their artists join the fallback pool.
+- Fetch: a candidate by a disliked artist is rejected before its clip is downloaded, ignoring case.
 - Feedback endpoints: `PUT` creates and updates, `DELETE` clears, and a re-rating resets `created_at`.
 - Rating UI: clicking an inactive toggle saves that rating, clicking the active one clears it, and switching from like to dislike replaces the rating.
 
@@ -108,7 +106,7 @@ Clips are not kept, so existing rated songs have no embeddings. `api/backfill_em
 
 - Fine-tuning the embedding model.
 - A vector database or SQLite extension.
-- Hard rules. Disliked genres are only a soft negative in the prior, and explicit exclusions and language requirements are not enforced.
+- Hard rules beyond disliked artists. Disliked genres are only a soft negative in the prior, and language requirements are not enforced.
 - Rating notes or reasons.
 - Treating unrated songs as negatives.
 - Showing or explaining the score beyond the badge on the card.

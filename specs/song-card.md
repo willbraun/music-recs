@@ -18,13 +18,13 @@ Props are a `Song` as returned by `GET /api/songs` or a `scored` event:
 | `recommended`     | Shows a badge on the Songs page when false         |
 | `rating`          | State of the like and dislike toggles              |
 
-All new fields are nullable. See [artwork.md](artwork.md).
+All new fields except `thumbnail_url` are nullable. See [artwork.md](artwork.md).
 
 ## Layout
 
 - Square image (1:1) on top, rounded corners, `object-cover`. A 16:9 YouTube thumbnail is center-cropped.
 - Below the image: title (one line, ellipsis, full title in a tooltip), artist (one line), and album (one line, muted) if present.
-- A match badge (for example "87%") in a corner of the image, from `score` rounded to a whole percent. It is not shown when `score` is null.
+- A match badge (for example "87%") in a corner of the image, from `score` rounded to a whole percent.
 - On the Songs page, songs with `recommended = false` show a muted "Not recommended" badge.
 - Fixed width in the carousel; fluid width in the grid.
 

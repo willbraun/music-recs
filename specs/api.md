@@ -69,7 +69,7 @@ Every event has a `type`. The shapes:
 | `error`             | `message` (string)                                                                                                                                     | The run failed. This is the last event.           |
 
 - `tier` is `familiar`, `adjacent`, or `adventurous` for generated queries, and `null` when the user gave a `query`.
-- `started` currently also carries `taste_version`. It is removed along with `taste_versions` ([database.md](database.md#moving-an-existing-database-to-this-schema)).
+- `started` does not carry `taste_version`, which is removed with `taste_versions` ([database.md](database.md#starting-from-a-clean-database)).
 - The artwork fields on `scored` are `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` ([artwork.md](artwork.md)).
 - Home maps these events to its status text ([home.md](home.md#events)).
 
@@ -79,22 +79,22 @@ Every event has a `type`. The shapes:
 
 Returned by `GET /api/songs`. A `scored` event carries the same fields except `analyzed_at` and `rating`.
 
-| Field                          | Type               | Notes                                                                    |
-| ------------------------------ | ------------------ | ------------------------------------------------------------------------ |
-| `video_id`                     | string             | YouTube video id                                                         |
-| `title`                        | string             |                                                                          |
-| `artist`                       | string             |                                                                          |
-| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                             |
-| `score`                        | number or null     | Match score from 0 to 1. Null for songs analyzed before scoring existed. |
-| `analyzed_at`                  | string             |                                                                          |
-| `query`                        | string or null     | The search query that found the song. Null for old rows.                 |
-| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                                      |
-| `album_art_url`                | string or null     | _Planned._                                                               |
-| `album`                        | string or null     | _Planned._                                                               |
-| `musicbrainz_recording_id`     | string or null     | _Planned._                                                               |
-| `musicbrainz_release_group_id` | string or null     | _Planned._                                                               |
-| `recommended`                  | boolean            | Whether the score met the run's threshold                                |
-| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.                         |
+| Field                          | Type               | Notes                                            |
+| ------------------------------ | ------------------ | ------------------------------------------------ |
+| `video_id`                     | string             | YouTube video id                                 |
+| `title`                        | string             |                                                  |
+| `artist`                       | string             |                                                  |
+| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`     |
+| `score`                        | number             | Match score from 0 to 1.                         |
+| `analyzed_at`                  | string             |                                                  |
+| `query`                        | string             | The search query that found the song.            |
+| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)              |
+| `album_art_url`                | string or null     | _Planned._                                       |
+| `album`                        | string or null     | _Planned._                                       |
+| `musicbrainz_recording_id`     | string or null     | _Planned._                                       |
+| `musicbrainz_release_group_id` | string or null     | _Planned._                                       |
+| `recommended`                  | boolean            | Whether the score met the run's threshold        |
+| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated. |
 
 ### `GET /api/songs`
 
@@ -183,18 +183,22 @@ The user's taste. See [taste.md](taste.md).
 
 The `profile` object:
 
-| Field             | Type            |
-| ----------------- | --------------- |
-| `liked_genres`    | list of strings |
-| `liked_artists`   | list of strings |
-| `disliked_genres` | list of strings |
+| Field              | Type            |
+| ------------------ | --------------- |
+| `liked_genres`     | list of strings |
+| `liked_artists`    | list of strings |
+| `disliked_genres`  | list of strings |
+| `disliked_artists` | list of strings |
+| `notes`            | string          |
 
 ```json
 {
 	"profile": {
 		"liked_genres": ["Electronic", "Indie rock"],
 		"liked_artists": ["Tame Impala", "Flume"],
-		"disliked_genres": ["Country"]
+		"disliked_genres": ["Country"],
+		"disliked_artists": [],
+		"notes": "I like long instrumental builds."
 	},
 	"updated_at": "2026-10-10 12:00:00"
 }
@@ -210,7 +214,7 @@ Returns the `Taste`, or `null` when none has been saved. `200` in both cases.
 
 Status: planned.
 
-Request body: `{ "profile": { ... } }`. The server normalizes the fields, validates them against the [taste rules](taste.md#rules), and overwrites the saved taste.
+Request body: `{ "profile": { ... } }`. `profile.notes` may be omitted, which saves an empty string. The server normalizes the fields, validates them against the [taste rules](taste.md#rules), and overwrites the saved taste.
 
 Response `200`: the saved `Taste`, with the normalized `profile`.
 

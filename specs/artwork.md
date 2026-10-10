@@ -9,7 +9,7 @@ Each analyzed song is enriched with display metadata: an album art image, the al
 
 ## New data
 
-Added to `songs` in `app.db` by a new numbered migration in `api/migrations/`. All are nullable.
+Added to `songs` in `app.db` by a new numbered migration in `api/migrations/`. `thumbnail_url` is NOT NULL, and the rest are nullable.
 
 | Column                         | Source                          | Notes                                                        |
 | ------------------------------ | ------------------------------- | ------------------------------------------------------------ |
@@ -70,11 +70,6 @@ Documentation: https://musicbrainz.org/doc/Cover_Art_Archive/API
 ## Frontend fallback
 
 The frontend picks an image in this order: `album_art_url`, then `thumbnail_url`, then a placeholder. A failed image load moves to the next one. See [song-card.md](song-card.md#artwork).
-
-## Existing rows
-
-- The migration fills `thumbnail_url` for every existing row from its `video_id`. See [database.md](database.md#migrations).
-- Existing rows keep NULL for the four MusicBrainz-derived columns, and the cards use the YouTube thumbnail. A one-time backfill command that looks up recommended songs with NULL `musicbrainz_recording_id` may be added later. Because "not looked up" and "no match" are both NULL, such a backfill would retry songs that had no match.
 
 ## Testing
 
