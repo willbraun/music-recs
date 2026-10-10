@@ -1,7 +1,6 @@
 import argparse
 
 from appdb import AppDb
-from cache import Cache
 from pipeline import run
 
 
@@ -16,7 +15,7 @@ def main() -> None:
 
     results = []
     analyzed = 0
-    for event in run(args.query, args.count, args.exploration, Cache(), AppDb()):
+    for event in run(args.query, args.count, args.exploration, AppDb()):
         if event["type"] == "queries":
             for q in event["queries"]:
                 print(f"Query ({q['tier']}): {q['query']}", flush=True)

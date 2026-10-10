@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Iterator
 
 from appdb import AppDb
-from cache import Cache
 from fetch import OVERFETCH, Song, fetch_songs
 
 MAX_QUERIES = 6
@@ -54,7 +53,6 @@ def run(
     query: str | None,
     count: int,
     exploration: int,
-    cache: Cache,
     appdb: AppDb,
 ) -> Iterator[dict]:
     """Find and analyze new songs, yielding a progress event dict per step.
@@ -70,7 +68,7 @@ def run(
 
     # 1. Load the current taste and the ids that must not be recommended again.
     taste_version, taste = appdb.get_current_taste()
-    skip_ids = cache.get_seen_ids() | appdb.get_rated_ids()
+    skip_ids = appdb.get_seen_ids()
     yield {"type": "started", "query": query, "count": count, "exploration": exploration, "taste_version": taste_version}
 
     # 2. Use the given query, or generate queries from the taste at this exploration level.
@@ -120,7 +118,7 @@ def run(
                     continue
 
                 # 5. Cache the song so later runs skip it, then report the result.
-                cache.add(song.video_id, song.title, song.artist, song.url, description, song_query, taste_version)
+                appdb.add_song(song.video_id, song.title, song.artist, song.url, description, song_query, taste_version)
 
                 recommended += is_recommended
                 yield {

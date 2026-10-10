@@ -92,7 +92,7 @@ Invalid values return 422 (FastAPI validation). The UI's "Recommended" default s
 
 ### Implementation notes
 
-- Filtering, ordering, counting, and paging happen in SQL in [cache.py](../api/cache.py) with parameterized queries (never string-built values). `Cache.list_songs` takes the filters, `limit`, and `offset`, and a second method returns the total.
+- Filtering, ordering, counting, and paging happen in SQL in [appdb.py](../api/appdb.py) with parameterized queries (never string-built values). `AppDb.list_songs` takes the filters, `limit`, and `offset`, and a second method returns the total.
 - Recommended filter: `description LIKE 'Verdict: YES%'`. Stored descriptions always use that fixed format, so this matches `get_verdict` in [recommend.py](../api/recommend.py). Not recommended is the songs with a verdict that is not YES; songs without a verdict are never stored.
 - `LIKE` patterns for `q` must escape `%`, `_`, and the escape character.
 - No new index is needed at the expected size (thousands of rows). Revisit if the table grows much larger.

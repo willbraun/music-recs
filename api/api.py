@@ -9,7 +9,6 @@ from typing import Annotated, Iterator
 
 import uvicorn
 from appdb import AppDb
-from cache import Cache
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,12 +44,12 @@ class Job:
             self.cond.notify_all()
 
 
-def _process_jobs(jobs: "queue.Queue[Job]", cache: Cache, appdb: AppDb) -> None:
+def _process_jobs(jobs: "queue.Queue[Job]", appdb: AppDb) -> None:
     # A single worker serializes runs, since there is one model on one device.
     while True:
         job = jobs.get()
         try:
-            for event in run(job.request.query, job.request.count, job.request.exploration, cache, appdb):
+            for event in run(job.request.query, job.request.count, job.request.exploration, appdb):
                 job.publish(event)
         except Exception as e:
             job.publish({"type": "error", "message": str(e)})
@@ -77,10 +76,10 @@ def _stream(job: Job, start: int) -> Iterator[str]:
 
 @asynccontextmanager
 async def manage_lifespan(app: FastAPI):
-    app.state.cache = Cache()
+    app.state.appdb = AppDb()
     app.state.jobs = {}
     app.state.queue = queue.Queue()
-    threading.Thread(target=_process_jobs, args=(app.state.queue, app.state.cache, AppDb()), daemon=True).start()
+    threading.Thread(target=_process_jobs, args=(app.state.queue, app.state.appdb), daemon=True).start()
     yield
 
 
@@ -107,7 +106,7 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
 
 @app.get("/api/songs")
 def list_songs(request: Request) -> list[dict]:
-    songs = request.app.state.cache.list_songs()
+    songs = request.app.state.appdb.list_songs()
     return [{**song, "recommended": get_verdict(song["description"]) is True} for song in songs]
 
 

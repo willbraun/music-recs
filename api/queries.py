@@ -106,7 +106,6 @@ def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuer
     """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
     tiers = allocate_tiers(n, exploration)
     text = _generate_text(_build_prompt(taste, tiers))
-    print(text)
     unload_model()
 
     generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]

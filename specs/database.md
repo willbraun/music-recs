@@ -1,79 +1,69 @@
 # Database
 
-The app uses two SQLite files in the `api/` folder. Both are opened through [db.py](../api/db.py), which uses a new connection per operation and returns rows as `sqlite3.Row`. All timestamps are UTC text from `CURRENT_TIMESTAMP` (`YYYY-MM-DD HH:MM:SS`).
+The app uses one SQLite file, `api/app.db`, accessed through `AppDb` in [appdb.py](../api/appdb.py). It is opened through [db.py](../api/db.py), which uses a new connection per operation, returns rows as `sqlite3.Row`, and turns on `PRAGMA foreign_keys` for every connection. All timestamps are UTC text from `CURRENT_TIMESTAMP` (`YYYY-MM-DD HH:MM:SS`). Nothing in it can be rebuilt, so do not delete it.
 
-| File       | Module                      | Purpose                                                  | Safe to delete |
-| ---------- | --------------------------- | -------------------------------------------------------- | -------------- |
-| `cache.db` | [cache.py](../api/cache.py) | Analyzed songs, so they are not analyzed again           | Yes            |
-| `app.db`   | [appdb.py](../api/appdb.py) | Taste history and song feedback, which cannot be rebuilt | No             |
+## Migrations
 
-Tables are created with `CREATE TABLE IF NOT EXISTS` when `Cache` or `AppDb` is constructed.
+The schema is versioned by numbered SQL files in [api/migrations/](../api/migrations/), applied by [migrate.py](../api/migrate.py) when `AppDb` is constructed.
 
-## cache.db
+- Files are named `NNNN_name.sql`, numbered from `0001` with no gaps. The file number is the schema version, stored in `PRAGMA user_version`.
+- On startup each file newer than the stored version runs in one transaction together with the version bump, so a failed migration leaves the database at the previous version. Files must not contain `BEGIN` or `COMMIT`.
+- A database whose version is newer than the newest file is rejected.
+- To change the schema, add the next numbered file. Never edit one that has been applied.
+- SQLite cannot alter a constraint in place, so changing one means creating a new table, copying rows, dropping the old table, and renaming.
+- The database uses WAL mode, so `app.db-wal` and `app.db-shm` appear next to it.
 
-### `songs`
+`0001_initial.sql` creates all three tables below.
 
-One row per analyzed song.
+## `songs`
 
-| Column                         | Type    | Constraints                         | Description                                                                                                                                                               |
-| ------------------------------ | ------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `video_id`                     | TEXT    | PRIMARY KEY                         | YouTube video id                                                                                                                                                          |
-| `title`                        | TEXT    | NOT NULL                            | Song title                                                                                                                                                                |
-| `artist`                       | TEXT    | NOT NULL                            | Artist name                                                                                                                                                               |
-| `url`                          | TEXT    | NOT NULL                            | `https://www.youtube.com/watch?v=<video_id>`                                                                                                                              |
-| `description`                  | TEXT    | NOT NULL                            | Music Flamingo's verdict for the clip, `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`, from the YES/NO token logits                                      |
-| `analyzed_at`                  | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the song was analyzed                                                                                                                                                |
-| `taste_version`                | INTEGER |                                     | `taste_versions.id` in `app.db` that the song was analyzed under. NULL for rows from before this column existed. No foreign key, since the tables are in different files. |
-| `query`                        | TEXT    |                                     | Search query that found the song. NULL for rows from before this column existed.                                                                                          |
-| `thumbnail_url`                | TEXT    |                                     | YouTube thumbnail, `https://img.youtube.com/vi/<video_id>/hqdefault.jpg`. Always set; filled for old rows by the migration.                                               |
-| `album_art_url`                | TEXT    |                                     | Cover Art Archive image, `https://coverartarchive.org/release-group/<release_group_id>/front-500`. NULL when there is no match or no cover.                               |
-| `album`                        | TEXT    |                                     | Album (MusicBrainz release group) title, for display. NULL when there is no match.                                                                                        |
-| `musicbrainz_recording_id`     | TEXT    |                                     | MusicBrainz recording that was matched. NULL when there is no confident match.                                                                                            |
-| `musicbrainz_release_group_id` | TEXT    |                                     | MusicBrainz release group used for the artwork. NULL when there is no confident match.                                                                                    |
+One row per analyzed song. Songs are permanent, since `feedback` refers to them.
 
-- `Cache.add` uses `INSERT OR REPLACE`, so re-adding a `video_id` overwrites the row. It also takes the five display columns above.
-- `Cache.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
+| Column          | Type    | Constraints                         | Description                                                                                                                          |
+| --------------- | ------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `video_id`      | TEXT    | PRIMARY KEY                         | YouTube video id                                                                                                                     |
+| `title`         | TEXT    | NOT NULL                            | Song title                                                                                                                           |
+| `artist`        | TEXT    | NOT NULL                            | Artist name                                                                                                                          |
+| `url`           | TEXT    | NOT NULL                            | `https://www.youtube.com/watch?v=<video_id>`                                                                                         |
+| `description`   | TEXT    | NOT NULL                            | Music Flamingo's verdict for the clip, `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`, from the YES/NO token logits |
+| `analyzed_at`   | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the song was analyzed                                                                                                           |
+| `taste_version` | INTEGER | REFERENCES `taste_versions(id)`     | The taste version the song was analyzed under. NULL for rows from before this column existed.                                        |
+| `query`         | TEXT    |                                     | Search query that found the song. NULL for rows from before this column existed.                                                     |
+
+- `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first and would fail on a rated song.
+- `AppDb.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
 - How the display columns are filled is described in [artwork.md](artwork.md).
 - Songs whose analysis has no verdict are not stored. A song counts as recommended when its description starts with `Verdict: YES`; this is derived on read, not stored.
 
-### Migration
+`thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` are planned in [artwork.md](artwork.md) and are not in `0001`. They arrive in a later migration, which also runs `UPDATE songs SET thumbnail_url = 'https://img.youtube.com/vi/' || video_id || '/hqdefault.jpg'` so every existing row has a thumbnail.
 
-`taste_version`, `query`, `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` were added after the first release. On startup `Cache` reads `PRAGMA table_info(songs)` and runs `ALTER TABLE songs ADD COLUMN` for any that are missing. This is why an upgraded database lists them last, after `analyzed_at`. Existing rows keep NULL in all of them, except that when `thumbnail_url` is added the migration also runs `UPDATE songs SET thumbnail_url = 'https://img.youtube.com/vi/' || video_id || '/hqdefault.jpg'` so every row has a thumbnail. The `score` column from earlier versions is removed with `ALTER TABLE songs DROP COLUMN score` if present.
-
-## app.db
-
-### `taste_versions`
+## `taste_versions`
 
 Append-only history of the taste text. The current taste is the row with the highest `id`, so there is no "current" flag.
 
-| Column       | Type    | Constraints                         | Description                                                                  |
-| ------------ | ------- | ----------------------------------- | ---------------------------------------------------------------------------- |
-| `id`         | INTEGER | PRIMARY KEY AUTOINCREMENT           | Version number, stored on `songs.taste_version` and `feedback.taste_version` |
-| `text`       | TEXT    | NOT NULL                            | Full taste text, inserted into the Music Flamingo prompt unchanged           |
-| `source`     | TEXT    | NOT NULL                            | How the version was created. Only `seed` is written so far.                  |
-| `note`       | TEXT    |                                     | Why the version was created. Not written yet.                                |
-| `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the version was created                                                 |
+| Column       | Type    | Constraints                         | Description                                                        |
+| ------------ | ------- | ----------------------------------- | ------------------------------------------------------------------ |
+| `id`         | INTEGER | PRIMARY KEY AUTOINCREMENT           | Version number, stored on `songs.taste_version`                    |
+| `text`       | TEXT    | NOT NULL                            | Full taste text, inserted into the Music Flamingo prompt unchanged |
+| `source`     | TEXT    | NOT NULL                            | How the version was created. Only `seed` is written so far.        |
+| `note`       | TEXT    |                                     | Why the version was created. Not written yet.                      |
+| `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the version was created                                       |
 
 - If the table is empty on startup, version 1 is inserted with `source = 'seed'` and the text of `SEED_TASTE` in [appdb.py](../api/appdb.py). `SEED_TASTE` is not read again after that.
 - SQLite also creates an internal `sqlite_sequence` table for the `AUTOINCREMENT` counter. The app does not use it directly.
 
-### `feedback`
+## `feedback`
 
-One rating per song. Song details are copied from `songs`, so a row stays useful after `cache.db` is deleted. Nothing writes to this table yet; `AppDb.get_rated_ids` reads it so rated songs are skipped in searches.
+One rating per song. Nothing writes to this table yet. The taste version a song was rated under is `songs.taste_version`.
 
-| Column          | Type    | Constraints                         | Description                                      |
-| --------------- | ------- | ----------------------------------- | ------------------------------------------------ |
-| `video_id`      | TEXT    | PRIMARY KEY                         | YouTube video id                                 |
-| `title`         | TEXT    | NOT NULL                            | Copy of the song title                           |
-| `artist`        | TEXT    | NOT NULL                            | Copy of the artist name                          |
-| `url`           | TEXT    | NOT NULL                            | Copy of the song URL                             |
-| `description`   | TEXT    | NOT NULL                            | Copy of the Music Flamingo description           |
-| `taste_version` | INTEGER |                                     | `taste_versions.id` the song was analyzed under  |
-| `rating`        | INTEGER | NOT NULL                            | The user's rating. The scale is not decided yet. |
-| `note`          | TEXT    |                                     | Optional free-text reason for the rating         |
-| `created_at`    | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the rating was saved                        |
+| Column       | Type    | Constraints                                                  | Description                              |
+| ------------ | ------- | ------------------------------------------------------------ | ---------------------------------------- |
+| `video_id`   | TEXT    | PRIMARY KEY, REFERENCES `songs(video_id)` ON DELETE RESTRICT | The rated song                           |
+| `rating`     | INTEGER | NOT NULL, CHECK (`rating` IN (-1, 1))                        | `1` is a like, `-1` is a dislike         |
+| `note`       | TEXT    |                                                              | Optional free-text reason for the rating |
+| `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          | When the rating was saved                |
 
-## Relationships across files
+## Relationships
 
-- `songs.taste_version` and `feedback.taste_version` refer to `taste_versions.id`. SQLite cannot enforce this across files, so nothing checks it.
-- Searches skip the union of `songs.video_id` (from `cache.db`) and `feedback.video_id` (from `app.db`), so rated songs stay skipped after `cache.db` is deleted.
+- `songs.taste_version` refers to `taste_versions.id`, and `feedback.video_id` refers to `songs.video_id`. Both are enforced.
+- Because every rated song has a `songs` row, searches skip `songs.video_id` alone (`AppDb.get_seen_ids`).

@@ -104,7 +104,7 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 - If a task is too large, break it into small, independently verifiable steps.
 - If implementation reveals missing requirements, document the ambiguity and propose a resolution.
 - Update specifications when explicitly requested or when an agreed behavior changes.
-- When there are database updates, update the specs/database.md and ensure any relevant migration scripts or cache handling logic are also reviewed and updated accordingly.
+- When there are database updates, update the specs/database.md and ensure any relevant migration scripts or cache handling logic are also reviewed and updated accordingly. Schema changes are a new numbered file in `api/migrations/`; never edit a migration that has been applied.
 - Do not silently change the intended product behavior to make implementation easier.
 
 ## Legacy Frontend Migration

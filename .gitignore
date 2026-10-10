@@ -4,5 +4,6 @@ __pycache__/
 *.pyd
 
 # Database files
-cache.db
 app.db
+app.db-wal
+app.db-shm
