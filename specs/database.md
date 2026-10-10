@@ -1,11 +1,11 @@
 # Database
 
-The app uses two SQLite files in the project root. Both are opened through [db.py](../db.py), which uses a new connection per operation and returns rows as `sqlite3.Row`. All timestamps are UTC text from `CURRENT_TIMESTAMP` (`YYYY-MM-DD HH:MM:SS`).
+The app uses two SQLite files in the `api/` folder. Both are opened through [db.py](../api/db.py), which uses a new connection per operation and returns rows as `sqlite3.Row`. All timestamps are UTC text from `CURRENT_TIMESTAMP` (`YYYY-MM-DD HH:MM:SS`).
 
-| File       | Module                  | Purpose                                                  | Safe to delete |
-| ---------- | ----------------------- | -------------------------------------------------------- | -------------- |
-| `cache.db` | [cache.py](../cache.py) | Analyzed songs, so they are not analyzed again           | Yes            |
-| `app.db`   | [appdb.py](../appdb.py) | Taste history and song feedback, which cannot be rebuilt | No             |
+| File       | Module                      | Purpose                                                  | Safe to delete |
+| ---------- | --------------------------- | -------------------------------------------------------- | -------------- |
+| `cache.db` | [cache.py](../api/cache.py) | Analyzed songs, so they are not analyzed again           | Yes            |
+| `app.db`   | [appdb.py](../api/appdb.py) | Taste history and song feedback, which cannot be rebuilt | No             |
 
 Tables are created with `CREATE TABLE IF NOT EXISTS` when `Cache` or `AppDb` is constructed.
 
@@ -48,7 +48,7 @@ Append-only history of the taste text. The current taste is the row with the hig
 | `note`       | TEXT    |                                     | Why the version was created. Not written yet.                                |
 | `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the version was created                                                 |
 
-- If the table is empty on startup, version 1 is inserted with `source = 'seed'` and the text of `SEED_TASTE` in [appdb.py](../appdb.py). `SEED_TASTE` is not read again after that.
+- If the table is empty on startup, version 1 is inserted with `source = 'seed'` and the text of `SEED_TASTE` in [appdb.py](../api/appdb.py). `SEED_TASTE` is not read again after that.
 - SQLite also creates an internal `sqlite_sequence` table for the `AUTOINCREMENT` counter. The app does not use it directly.
 
 ### `feedback`

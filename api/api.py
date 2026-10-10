@@ -8,17 +8,16 @@ from pathlib import Path
 from typing import Annotated, Iterator
 
 import uvicorn
+from appdb import AppDb
+from cache import Cache
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StringConstraints
-
-from appdb import AppDb
-from cache import Cache
 from pipeline import run
+from pydantic import BaseModel, Field, StringConstraints
 from recommend import get_verdict
 
-WEB_DIR = Path(__file__).parent / "web"
+WEB_DIR = Path(__file__).parent.parent / "web"
 KEEPALIVE_SECONDS = 15
 
 
