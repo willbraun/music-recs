@@ -12,8 +12,9 @@ from appdb import AppDb
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pipeline import run
+from pipeline import NO_TASTE_MESSAGE, run
 from pydantic import BaseModel, Field, StringConstraints
+from taste_profile import Taste, TasteProfile, normalize_taste
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 KEEPALIVE_SECONDS = 15
@@ -23,6 +24,10 @@ class RunRequest(BaseModel):
     query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
     count: int = Field(3, ge=1, le=50)
     exploration: int = Field(50, ge=0, le=100)
+
+
+class TasteRequest(BaseModel):
+    profile: TasteProfile
 
 
 @dataclass
@@ -87,6 +92,8 @@ app = FastAPI(lifespan=manage_lifespan)
 
 @app.post("/api/runs", status_code=202)
 def start_run(body: RunRequest, request: Request) -> dict:
+    if request.app.state.appdb.get_current_taste() is None:
+        raise HTTPException(status_code=409, detail=NO_TASTE_MESSAGE)
     job = Job(body)
     run_id = uuid.uuid4().hex
     request.app.state.jobs[run_id] = job
@@ -106,6 +113,25 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
 @app.get("/api/songs")
 def list_songs(request: Request) -> list[dict]:
     return request.app.state.appdb.list_songs()
+
+
+def _serialize_taste(taste: Taste) -> dict:
+    return {"profile": taste.profile.model_dump(), "text": taste.text, "updated_at": taste.updated_at}
+
+
+@app.get("/api/taste")
+def get_taste(request: Request) -> dict | None:
+    taste = request.app.state.appdb.get_current_taste()
+    return None if taste is None else _serialize_taste(taste)
+
+
+@app.put("/api/taste")
+def save_taste(body: TasteRequest, request: Request) -> dict:
+    try:
+        profile = normalize_taste(body.profile)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return _serialize_taste(request.app.state.appdb.save_taste(profile))
 
 
 # Mounted last so it never shadows the /api routes.

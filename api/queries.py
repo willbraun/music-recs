@@ -22,8 +22,6 @@ TIER_INSTRUCTIONS = {
     ),
 }
 
-_FAVORITE_ARTISTS = re.compile(r"favorite artists are (.+?)\.(?:\s|$)", re.IGNORECASE)
-
 
 @dataclass
 class GeneratedQuery:
@@ -86,10 +84,8 @@ def _parse(text: str) -> list[str]:
     return [item.strip() for item in items if isinstance(item, str) and item.strip()]
 
 
-def _get_fallback_queries(taste: str) -> list[str]:
-    match = _FAVORITE_ARTISTS.search(taste)
-    artists = [a.strip() for a in match.group(1).split(",") if a.strip()] if match else []
-    return artists or [taste[:100]]
+def _get_fallback_queries(taste: str, liked_artists: list[str]) -> list[str]:
+    return list(liked_artists) or [taste[:100]]
 
 
 def _generate_text(prompt: str) -> str:
@@ -102,15 +98,18 @@ def _generate_text(prompt: str) -> str:
     return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
-def generate_queries(taste: str, exploration: int, n: int) -> list[GeneratedQuery]:
-    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100)."""
+def generate_queries(taste: str, liked_artists: list[str], exploration: int, n: int) -> list[GeneratedQuery]:
+    """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100).
+
+    `liked_artists` are the fallback queries when the model returns too few.
+    """
     tiers = allocate_tiers(n, exploration)
     text = _generate_text(_build_prompt(taste, tiers))
     unload_model()
 
     generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]
     # Pad with taste-derived queries when the model returned too few.
-    fallback = _get_fallback_queries(taste)
+    fallback = _get_fallback_queries(taste, liked_artists)
     random.shuffle(fallback)
     for i in range(len(generated), n):
         generated.append(GeneratedQuery(fallback[i % len(fallback)], "familiar"))

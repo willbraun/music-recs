@@ -17,7 +17,7 @@ The application consists of:
 - An existing Python API responsible for backend functionality and music analysis.
 - A SQLite database for persistent application data.
 
-The frontend should provide a responsive, polished interface for discovering recommendations, browsing songs, listening to music, and providing feedback.
+The frontend should provide a responsive, polished interface for discovering recommendations, browsing songs, and listening to music.
 
 ## Source of Truth
 

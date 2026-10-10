@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from appdb import SEED_TASTE, AppDb
+from appdb import AppDb
 from migrate import apply_migrations
 
 
@@ -15,24 +15,24 @@ def _query(path: Path, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         conn.close()
 
 
-def test_fresh_database_is_migrated_and_seeded(tmp_path: Path) -> None:
+def test_fresh_database_is_migrated_with_no_taste(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     AppDb(path)
 
     assert [r[0] for r in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000]
-    assert AppDb(path).get_current_taste() == (1, SEED_TASTE)
-    assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
+    tables = {r["name"] for r in _query(path, "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"songs", "taste", "schema_migrations"} <= tables
+    assert AppDb(path).get_current_taste() is None
 
 
 def test_reopening_is_a_no_op(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     db = AppDb(path)
-    db.add_song("abc", "Title", "Artist", "u", True, 0.9, "q", 1)
+    db.add_song("abc", "Title", "Artist", "u", True, 0.9, "q")
 
     AppDb(path)
 
     assert db.get_seen_ids() == {"abc"}
-    assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
 
 
 def test_failed_migration_rolls_back_and_is_not_recorded(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from fetch import OVERFETCH, Song, fetch_songs
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
 MAX_SEARCH_RESULTS_PER_QUERY = 300
+NO_TASTE_MESSAGE = "Set your taste first"
 
 
 def _find_songs(
@@ -66,15 +67,18 @@ def run(
     from queries import generate_queries
 
     # 1. Load the current taste and the ids that must not be recommended again.
-    taste_version, taste = appdb.get_current_taste()
+    saved_taste = appdb.get_current_taste()
+    if saved_taste is None:
+        raise RuntimeError(NO_TASTE_MESSAGE)
+    taste = saved_taste.text
     skip_ids = appdb.get_seen_ids()
-    yield {"type": "started", "query": query, "count": count, "exploration": exploration, "taste_version": taste_version}
+    yield {"type": "started", "query": query, "count": count, "exploration": exploration}
 
     # 2. Use the given query, or generate queries from the taste at this exploration level.
     candidate_limit = count * CANDIDATES_PER_RECOMMENDATION
     if query is None:
         yield from _download_model_if_missing(QUERY_MODEL_ID)
-        generated = generate_queries(taste, exploration, min(candidate_limit, MAX_QUERIES))
+        generated = generate_queries(taste, saved_taste.profile.liked_artists, exploration, min(candidate_limit, MAX_QUERIES))
         searches = [(g.query, g.tier) for g in generated]
         yield {"type": "queries", "queries": [{"query": q, "tier": tier} for q, tier in searches]}
     else:
@@ -114,9 +118,7 @@ def run(
                 song.clip_path.unlink(missing_ok=True)
 
                 # 5. Cache the song so later runs skip it, then report the result.
-                appdb.add_song(
-                    song.video_id, song.title, song.artist, song.url, verdict.recommended, verdict.confidence, song_query, taste_version
-                )
+                appdb.add_song(song.video_id, song.title, song.artist, song.url, verdict.recommended, verdict.confidence, song_query)
 
                 recommended += verdict.recommended
                 yield {

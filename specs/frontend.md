@@ -2,7 +2,7 @@
 
 A SvelteKit single-page app (SPA) that replaces the legacy `web/` folder. It talks to the existing Python API in [api.py](../api/api.py) and adds no server-side logic of its own.
 
-Related specs: [home.md](home.md), [taste.md](taste.md), [learned-profile.md](learned-profile.md), [api.md](api.md), [song-card.md](song-card.md), [player.md](player.md), [songs-page.md](songs-page.md), [artwork.md](artwork.md), [database.md](database.md).
+Related specs: [home.md](home.md), [taste.md](taste.md), [api.md](api.md), [song-card.md](song-card.md), [player.md](player.md), [songs-page.md](songs-page.md), [artwork.md](artwork.md), [database.md](database.md).
 
 ## Stack
 
@@ -75,15 +75,13 @@ Page-specific state (Songs page filters, page number) lives in the URL, not in a
 
 A typed `api.ts` module wraps `fetch` and defines the TypeScript types for API payloads. Every endpoint, input, and output is described in [api.md](api.md).
 
-| Function               | Request                                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| `startRun(count)`      | `POST /api/runs` with `{ "count": n }`, returns `{ id }`                                  |
-| `openRunEvents(id)`    | `EventSource` on `GET /api/runs/{id}/events`                                              |
-| `listSongs(params)`    | `GET /api/songs` with filters and paging ([api.md](api.md#get-apisongs))                  |
-| `getTaste()`           | `GET /api/taste`, returns the saved taste or `null` ([api.md](api.md#get-apitaste))       |
-| `saveTaste(profile)`   | `PUT /api/taste` with `{ profile }`, returns the saved taste                              |
-| `rateSong(id, rating)` | _Planned._ `PUT /api/songs/{id}/feedback` ([api.md](api.md#put-apisongsvideo_idfeedback)) |
-| `clearRating(id)`      | _Planned._ `DELETE /api/songs/{id}/feedback`                                              |
+| Function             | Request                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `startRun(count)`    | `POST /api/runs` with `{ "count": n }`, returns `{ id }`                            |
+| `openRunEvents(id)`  | `EventSource` on `GET /api/runs/{id}/events`                                        |
+| `listSongs(params)`  | `GET /api/songs` with filters and paging ([api.md](api.md#get-apisongs))            |
+| `getTaste()`         | `GET /api/taste`, returns the saved taste or `null` ([api.md](api.md#get-apitaste)) |
+| `saveTaste(profile)` | `PUT /api/taste` with `{ profile }`, returns the saved taste                        |
 
 Rules:
 
@@ -112,7 +110,7 @@ Rules:
 ## Non-goals (for now)
 
 - Settings for `query` or `exploration`. Runs use the API defaults (`query` null, `exploration` 50).
-- Rating songs, until [learned-profile.md](learned-profile.md) is built. The `feedback` table has no writer yet.
+- Rating songs.
 - Cancelling a run. The API has no cancel endpoint.
 - Packaging as a desktop app. The SPA runs in a browser against the local API; the desktop wrapper is a separate decision.
 - Authentication. The API is local only.

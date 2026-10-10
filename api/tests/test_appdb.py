@@ -3,16 +3,17 @@ from pathlib import Path
 
 import pytest
 from appdb import AppDb
+from taste_profile import TasteProfile
 
 
-def _add_song(db: AppDb, video_id: str = "abc", taste_version: int = 1) -> None:
-    db.add_song(video_id, "Title", "Artist", f"https://www.youtube.com/watch?v={video_id}", True, 0.9, "q", taste_version)
+def _add_song(db: AppDb, video_id: str = "abc") -> None:
+    db.add_song(video_id, "Title", "Artist", f"https://www.youtube.com/watch?v={video_id}", True, 0.9, "q")
 
 
 def test_add_song_overwrites_existing_row(tmp_path: Path) -> None:
     db = AppDb(tmp_path / "app.db")
     _add_song(db)
-    db.add_song("abc", "New", "Artist", "u", False, 0.6, "q2", 1)
+    db.add_song("abc", "New", "Artist", "u", False, 0.6, "q2")
 
     songs = db.list_songs()
     assert [s["title"] for s in songs] == ["New"]
@@ -24,36 +25,44 @@ def test_confidence_must_be_between_half_and_one(tmp_path: Path) -> None:
     db = AppDb(tmp_path / "app.db")
     for confidence in (0.3, 1.2):
         with pytest.raises(sqlite3.IntegrityError):
-            db.add_song("abc", "T", "A", "u", True, confidence, "q", 1)
+            db.add_song("abc", "T", "A", "u", True, confidence, "q")
 
 
-def test_feedback_rating_must_be_like_or_dislike(tmp_path: Path) -> None:
-    path = tmp_path / "app.db"
-    _add_song(AppDb(path))
-    conn = sqlite3.connect(path)
-    try:
-        conn.execute("INSERT INTO feedback (video_id, rating) VALUES ('abc', -1)")
-        with pytest.raises(sqlite3.IntegrityError):
-            conn.execute("UPDATE feedback SET rating = 0")
-    finally:
-        conn.close()
+def test_get_current_taste_is_none_when_empty(tmp_path: Path) -> None:
+    assert AppDb(tmp_path / "app.db").get_current_taste() is None
 
 
-def test_rated_song_cannot_be_deleted_or_replaced(tmp_path: Path) -> None:
-    from db import connect
+def test_save_taste_round_trips_the_profile(tmp_path: Path) -> None:
+    db = AppDb(tmp_path / "app.db")
+    profile = TasteProfile(liked_artists=["Flume"], disliked_genres=["Country"], notes="English only.")
 
+    saved = db.save_taste(profile)
+
+    assert db.get_current_taste() == saved
+    assert saved.profile == profile
+    assert saved.updated_at
+
+
+def test_saving_twice_leaves_one_row_with_the_second_profile(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     db = AppDb(path)
-    _add_song(db)
-    with connect(path) as conn:
-        conn.execute("INSERT INTO feedback (video_id, rating) VALUES ('abc', 1)")
+    db.save_taste(TasteProfile(liked_genres=["Rock"]))
+    db.save_taste(TasteProfile(liked_genres=["Jazz"]))
+
+    conn = sqlite3.connect(path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM taste").fetchone()[0] == 1
+    finally:
+        conn.close()
+    assert db.get_current_taste().profile.liked_genres == ["Jazz"]
+
+
+def test_taste_table_rejects_a_second_row(tmp_path: Path) -> None:
+    path = tmp_path / "app.db"
+    AppDb(path)
+    conn = sqlite3.connect(path)
+    try:
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute("DELETE FROM songs WHERE video_id = 'abc'")
-
-    _add_song(db)  # Re-adding a rated song must not hit the foreign key.
-
-
-def test_unknown_taste_version_is_rejected(tmp_path: Path) -> None:
-    db = AppDb(tmp_path / "app.db")
-    with pytest.raises(sqlite3.IntegrityError):
-        _add_song(db, taste_version=99)
+            conn.execute("INSERT INTO taste (id, profile) VALUES (2, '{}')")
+    finally:
+        conn.close()

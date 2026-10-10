@@ -1,18 +1,20 @@
 import sys
+from types import SimpleNamespace
 
 import main
 import pytest
 
 
-def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], events: list[dict]) -> dict:
+def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], events: list[dict], taste: object = "taste") -> dict:
     captured: dict = {}
 
     def fake_run(query, count, exploration, appdb):
         captured.update(query=query, count=count, exploration=exploration, appdb=appdb)
         yield from events
 
+    db = SimpleNamespace(get_current_taste=lambda: taste)
     monkeypatch.setattr(main, "run", fake_run)
-    monkeypatch.setattr(main, "AppDb", lambda: "db")
+    monkeypatch.setattr(main, "AppDb", lambda: db)
     monkeypatch.setattr(sys, "argv", ["main.py", *argv])
     main.main()
     return captured
@@ -21,7 +23,14 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], events: list[dic
 def test_main_uses_defaults_without_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = _run_main(monkeypatch, [], [])
 
-    assert captured == {"query": None, "count": 3, "exploration": 50, "appdb": "db"}
+    assert {k: v for k, v in captured.items() if k != "appdb"} == {"query": None, "count": 3, "exploration": 50}
+
+
+def test_main_exits_without_a_taste(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        _run_main(monkeypatch, [], [], taste=None)
+
+    assert exit_info.value.code == "No taste set. Open the app to set one."
 
 
 def test_main_passes_arguments_to_run(monkeypatch: pytest.MonkeyPatch) -> None:

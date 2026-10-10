@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from appdb import AppDb
 from pipeline import run
@@ -13,9 +14,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    appdb = AppDb()
+    if appdb.get_current_taste() is None:
+        sys.exit("No taste set. Open the app to set one.")
+
     results = []
     analyzed = 0
-    for event in run(args.query, args.count, args.exploration, AppDb()):
+    for event in run(args.query, args.count, args.exploration, appdb):
         if event["type"] == "queries":
             for q in event["queries"]:
                 print(f"Query ({q['tier']}): {q['query']}", flush=True)

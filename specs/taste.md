@@ -1,17 +1,17 @@
 # Taste
 
-Status: planned, not implemented.
+Status: backend implemented, frontend planned.
 
-The user describes their taste once, before the first run, and can change it later. The taste is entered as structured fields and saved in the single-row `taste` table. When a run starts, the server renders the fields into one text string and sends it to the models. This replaces the hardcoded `SEED_TASTE` in [appdb.py](../api/appdb.py).
+The user describes their taste once, before the first run, and can change it later. The taste is entered as structured fields and saved in the single-row `taste` table. When a run starts, the server renders the fields into one text string and sends it to the models.
 
-Related: [database.md](database.md#taste), [frontend.md](frontend.md), [home.md](home.md), [learned-profile.md](learned-profile.md).
+Related: [database.md](database.md#taste), [frontend.md](frontend.md), [home.md](home.md).
 
-The taste is user-owned and only changes when the user saves the form. Ratings never change it. They feed a separate [learned profile](learned-profile.md) that is sent to the models next to the taste. There is no taste history: each run saves the text it used ([database.md](database.md#runs)).
+The taste is user-owned and only changes when the user saves the form. There is no taste history.
 
 ## Why structured fields
 
 - Exclusions are easy to forget in one free-text box. Separate "I don't like" fields make them explicit, and the prompts treat exclusions as hard NOs ([analyze.py](../api/analyze.py)).
-- [queries.py](../api/queries.py) parses the `My favorite artists are A, B, C.` sentence for fallback queries. A fixed template keeps it present.
+- [queries.py](../api/queries.py) uses the liked artists as fallback queries. Keeping them as a list means no parsing of the rendered text.
 - A deterministic template gives every version the same prompt shape.
 - A notes field still carries what the lists cannot, such as era, mood, language, or lyrics.
 
@@ -36,7 +36,7 @@ Enforced by the server. The form repeats the cheap ones so errors appear early.
 - At most 50 items per list and 100 characters per item.
 - Notes are at most 1000 characters. Newlines in notes become single spaces, so the text stays one paragraph.
 - An item cannot be in both a liked and a disliked list of the same kind, ignoring case.
-- The rendered text is at most 2000 characters, so the audio prompt stays small. The learned profile has its own, smaller cap ([learned-profile.md](learned-profile.md#rendering)).
+- The rendered text is at most 2000 characters, so the audio prompt stays small.
 
 ## Rendered text
 
@@ -48,7 +48,7 @@ I like these genres: {liked_genres}. My favorite artists are {liked_artists}. Ne
 
 - Lists are joined with `, `. A sentence whose list is empty is omitted, and so is the notes sentence when notes are empty. The remaining sentences are joined with one space.
 - `My favorite artists are` keeps its exact wording, so the text reads the same as before.
-- The pipeline passes `liked_artists` straight to `generate_queries` for fallback queries, so [queries.py](../api/queries.py) no longer needs `_FAVORITE_ARTISTS` to parse the text. Names that contain commas or `. ` work.
+- The pipeline passes `liked_artists` straight to `generate_queries` for fallback queries, so [queries.py](../api/queries.py) does not parse the text. Names that contain commas or `. ` work.
 
 Example:
 
@@ -65,7 +65,7 @@ The `taste` table has one row ([database.md](database.md#taste)). Saving overwri
 | `profile`    | The normalized fields as JSON, `{liked_genres, liked_artists, disliked_genres, disliked_artists, notes}` |
 | `updated_at` | The time of the save                                                                                     |
 
-Only the fields are stored. The text for the models is rendered from them with `render_taste` at the start of each run, so the two can never disagree. The rendered text is also returned by `GET /api/taste` for display. Each run saves the text it used in `runs.taste_text`.
+Only the fields are stored. The text for the models is rendered from them with `render_taste` at the start of each run, so the two can never disagree. The rendered text is also returned by `GET /api/taste` for display.
 
 Saving without changes is allowed and only refreshes `updated_at`. The form disables Save when nothing changed, so this only happens through the API.
 
@@ -85,8 +85,6 @@ A taste is `{profile, text, updated_at}`. `text` is rendered from `profile` on e
 ## First run
 
 A fresh database has no taste. The root layout loads the current taste once. While it loads, the page content is hidden to avoid a flash. When the result is `null` and the route is not `/taste`, the layout redirects to `/taste`. Every other route requires a taste. After saving, the app goes to `/`.
-
-An existing database has its old taste removed when it is upgraded ([database.md](database.md#moving-an-existing-database-to-this-schema)), so it is redirected like a fresh one and the user enters their taste again.
 
 ## Taste page
 
@@ -157,15 +155,14 @@ Below the form, the current `text` in a read-only block. It makes the rendering 
 ## Tests
 
 - `TasteProfile` and `render_taste`: normalization, deduplication, each limit, the liked-and-disliked conflict, empty likes rejected, omitted sentences, and the exact output.
-- `AppDb`: `get_current_taste` returns `None` when empty, saving twice leaves one row with the second profile, and `add_run` stores the rendered taste text.
+- `AppDb`: `get_current_taste` returns `None` when empty, saving twice leaves one row with the second profile.
 - API: `GET` returns `null` when empty, `PUT` writes for valid input and nothing for invalid input, and `POST /api/runs` returns `409` without a taste and `202` after saving one.
-- Upgrading an existing database: a database with a seed taste and songs ends with an empty `taste` table and all songs kept without `taste_version`. Rated songs and their feedback survive the rebuild. A fresh database ends at the same schema.
 - Frontend: the tag input adds on Enter, removes on Backspace, and rejects duplicates and cross-list items. The combobox disables cross-list genres and allows custom entries. Save stays disabled without a like and with no changes. The layout redirects to `/taste` when the taste is `null`.
 
 ## Non-goals
 
 - Artist autocomplete from YouTube Music or MusicBrainz.
-- Keeping a history of earlier tastes. Each run saves the text it used.
+- Keeping a history of earlier tastes.
 - Validating genres or artist names against a catalog.
 
 ## Notes for the future

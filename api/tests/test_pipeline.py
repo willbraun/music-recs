@@ -7,6 +7,7 @@ from analyze import Verdict
 from appdb import AppDb
 from fetch import Song
 from huggingface_hub.errors import LocalEntryNotFoundError
+from taste_profile import TasteProfile
 
 
 def _song(video_id: str, tmp_path: Path) -> Song:
@@ -86,7 +87,9 @@ def test_download_model_downloads_when_missing(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.fixture
 def appdb(tmp_path: Path) -> AppDb:
-    return AppDb(tmp_path / "app.db")
+    db = AppDb(tmp_path / "app.db")
+    db.save_taste(TasteProfile(liked_genres=["Rock"], liked_artists=["Flume"]))
+    return db
 
 
 @pytest.fixture
@@ -100,11 +103,11 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
             yield _song(video_id, tmp_path), searches[0][0], searches[0][1]
 
     def fake_analyze(clip_path: Path, taste: str, exploration: int) -> Verdict:
-        state.analyzed.append((clip_path.stem, exploration))
+        state.analyzed.append((clip_path.stem, taste, exploration))
         return state.verdicts.get(clip_path.stem, Verdict(True, 0.9))
 
-    def fake_generate(taste: str, exploration: int, n: int):
-        state.generated.append((exploration, n))
+    def fake_generate(taste: str, liked_artists: list[str], exploration: int, n: int):
+        state.generated.append((taste, liked_artists, exploration, n))
         return [SimpleNamespace(query="generated", tier="adjacent")]
 
     monkeypatch.setattr(pipeline, "_find_songs", fake_find_songs)
@@ -118,7 +121,7 @@ def test_run_with_query_stops_once_count_is_recommended(appdb: AppDb, stub_pipel
     events = list(pipeline.run("my query", 2, 40, appdb))
 
     assert [e["type"] for e in events] == ["started", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
-    assert events[0] == {"type": "started", "query": "my query", "count": 2, "exploration": 40, "taste_version": 1}
+    assert events[0] == {"type": "started", "query": "my query", "count": 2, "exploration": 40}
     assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 2, "count": 2}
     assert stub_pipeline.fetch_args[0] == [("my query", None)]
     assert stub_pipeline.fetch_args[1] == 2 * pipeline.CANDIDATES_PER_RECOMMENDATION
@@ -162,7 +165,7 @@ def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path:
 
 
 def test_run_passes_seen_ids_to_the_search(appdb: AppDb, stub_pipeline) -> None:
-    appdb.add_song("seen", "t", "a", "u", True, 0.9, "q", 1)
+    appdb.add_song("seen", "t", "a", "u", True, 0.9, "q")
 
     list(pipeline.run("q", 1, 50, appdb))
 
@@ -174,7 +177,10 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
 
     queries_event = next(e for e in events if e["type"] == "queries")
     assert queries_event["queries"] == [{"query": "generated", "tier": "adjacent"}]
-    assert stub_pipeline.generated == [(80, min(1 * pipeline.CANDIDATES_PER_RECOMMENDATION, pipeline.MAX_QUERIES))]
+    taste_text = "I like these genres: Rock. My favorite artists are Flume."
+    assert stub_pipeline.generated == [
+        (taste_text, ["Flume"], 80, min(1 * pipeline.CANDIDATES_PER_RECOMMENDATION, pipeline.MAX_QUERIES))
+    ]
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert next(e for e in events if e["type"] == "scored")["tier"] == "adjacent"
 
@@ -182,7 +188,12 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
 def test_run_passes_exploration_to_the_analyzer(appdb: AppDb, stub_pipeline) -> None:
     list(pipeline.run("q", 1, 77, appdb))
 
-    assert stub_pipeline.analyzed[0] == ("a", 77)
+    assert stub_pipeline.analyzed[0] == ("a", "I like these genres: Rock. My favorite artists are Flume.", 77)
+
+
+def test_run_without_a_saved_taste_raises(tmp_path: Path, stub_pipeline) -> None:
+    with pytest.raises(RuntimeError, match="Set your taste first"):
+        list(pipeline.run("q", 1, 50, AppDb(tmp_path / "empty.db")))
 
 
 def test_run_finishes_with_no_songs_found(appdb: AppDb, stub_pipeline) -> None:

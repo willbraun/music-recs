@@ -23,7 +23,7 @@ def apply_migrations(conn: sqlite3.Connection, directory: Path = MIGRATIONS_DIR)
     """Run each migration not yet recorded in `schema_migrations`, one transaction per file."""
     migrations = _load_migrations(directory)
 
-    # WAL lets feedback writes proceed while the pipeline writes songs; it persists in the file.
+    # WAL lets API reads proceed while the pipeline writes songs; it persists in the file.
     conn.execute("PRAGMA journal_mode=WAL")
     # PRAGMA user_version is a 32-bit integer and cannot hold a 14-digit timestamp.
     conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY)")

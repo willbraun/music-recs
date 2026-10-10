@@ -7,6 +7,7 @@ import pytest
 from appdb import AppDb
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from taste_profile import TasteProfile
 
 import api
 
@@ -128,6 +129,7 @@ def client(tmp_path: Path) -> TestClient:
 
 
 def test_start_run_queues_a_job_and_returns_its_id(client: TestClient) -> None:
+    api.app.state.appdb.save_taste(TasteProfile(liked_genres=["Rock"]))
     response = client.post("/api/runs", json={"query": "daft punk", "count": 2})
 
     assert response.status_code == 202
@@ -135,6 +137,13 @@ def test_start_run_queues_a_job_and_returns_its_id(client: TestClient) -> None:
     job = api.app.state.jobs[run_id]
     assert job.request == api.RunRequest(query="daft punk", count=2)
     assert api.app.state.queue.get_nowait() is job
+
+
+def test_start_run_requires_a_saved_taste(client: TestClient) -> None:
+    response = client.post("/api/runs", json={})
+
+    assert (response.status_code, response.json()) == (409, {"detail": "Set your taste first"})
+    assert api.app.state.queue.empty()
 
 
 def test_start_run_rejects_invalid_body(client: TestClient) -> None:
@@ -173,8 +182,8 @@ def test_get_run_events_unknown_run_is_404(client: TestClient) -> None:
 
 def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
     appdb: AppDb = api.app.state.appdb
-    appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q", 1)
-    appdb.add_song("no", "No", "A", "u", False, 0.6, "q", 1)
+    appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q")
+    appdb.add_song("no", "No", "A", "u", False, 0.6, "q")
 
     songs = {s["video_id"]: s for s in client.get("/api/songs").json()}
 
@@ -186,3 +195,40 @@ def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
 
 def test_list_songs_is_empty_for_a_new_database(client: TestClient) -> None:
     assert client.get("/api/songs").json() == []
+
+
+def test_get_taste_is_null_when_none_is_saved(client: TestClient) -> None:
+    response = client.get("/api/taste")
+
+    assert (response.status_code, response.json()) == (200, None)
+
+
+def test_put_taste_saves_normalizes_and_renders_the_text(client: TestClient) -> None:
+    body = {"profile": {"liked_genres": [" Rock ", "rock"], "liked_artists": ["Flume"], "notes": "a\nb"}}
+
+    saved = client.put("/api/taste", json=body)
+
+    assert saved.status_code == 200
+    assert saved.json()["profile"] == {
+        "liked_genres": ["Rock"],
+        "liked_artists": ["Flume"],
+        "disliked_genres": [],
+        "disliked_artists": [],
+        "notes": "a b",
+    }
+    assert saved.json()["text"] == "I like these genres: Rock. My favorite artists are Flume. Notes: a b"
+    assert client.get("/api/taste").json() == saved.json()
+
+
+def test_put_taste_rejects_invalid_input_and_saves_nothing(client: TestClient) -> None:
+    response = client.put("/api/taste", json={"profile": {"notes": "only notes"}})
+
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], str)
+    assert client.get("/api/taste").json() is None
+
+
+def test_start_run_is_accepted_after_saving_a_taste(client: TestClient) -> None:
+    client.put("/api/taste", json={"profile": {"liked_genres": ["Rock"]}})
+
+    assert client.post("/api/runs", json={}).status_code == 202

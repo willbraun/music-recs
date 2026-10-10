@@ -46,14 +46,14 @@ def test_build_prompt_lists_each_tier_in_order() -> None:
     assert "JSON array of 2 strings" in prompt
 
 
-def test_get_fallback_queries_uses_favorite_artists() -> None:
-    taste = "Rock, blues. My favorite artists are Tame Impala, Flume, Mac Miller. English only."
+def test_get_fallback_queries_uses_liked_artists() -> None:
+    artists = ["Tame Impala", "Flume", "Mac Miller, Jr."]
 
-    assert queries._get_fallback_queries(taste) == ["Tame Impala", "Flume", "Mac Miller"]
+    assert queries._get_fallback_queries("taste", artists) == artists
 
 
 def test_get_fallback_queries_truncates_taste_without_artists() -> None:
-    assert queries._get_fallback_queries("x" * 150) == ["x" * 100]
+    assert queries._get_fallback_queries("x" * 150, []) == ["x" * 100]
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def stub_model(monkeypatch: pytest.MonkeyPatch):
 def test_generate_queries_pairs_parsed_queries_with_tiers(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B"]')
 
-    result = generate_queries("taste", 0, 2)
+    result = generate_queries("taste", [], 0, 2)
 
     assert result == [GeneratedQuery("A", "familiar"), GeneratedQuery("B", "familiar")]
     assert stub_model == [True]
@@ -76,9 +76,9 @@ def test_generate_queries_pads_with_fallback_when_model_returns_too_few(
     monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]
 ) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
-    taste = "My favorite artists are Flume. Done."
+    taste = "My favorite artists are Flume."
 
-    result = generate_queries(taste, 100, 3)
+    result = generate_queries(taste, ["Flume"], 100, 3)
 
     assert result == [GeneratedQuery("Flume", "familiar")] * 3
 
@@ -86,4 +86,4 @@ def test_generate_queries_pads_with_fallback_when_model_returns_too_few(
 def test_generate_queries_ignores_extra_queries(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B", "C"]')
 
-    assert [g.query for g in generate_queries("taste", 0, 2)] == ["A", "B"]
+    assert [g.query for g in generate_queries("taste", [], 0, 2)] == ["A", "B"]

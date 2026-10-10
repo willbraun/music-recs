@@ -16,7 +16,7 @@ A run finds and analyzes new songs. Runs are queued and processed one at a time,
 
 ### `POST /api/runs`
 
-Status: implemented. _Planned:_ the `409` below.
+Status: implemented.
 
 Starts a run and returns right away.
 
@@ -28,7 +28,7 @@ Request body:
 | `count`       | integer | `3`     | `1` to `50`                  |
 | `exploration` | integer | `50`    | `0` to `100`                 |
 
-Without a `query`, search queries are generated from the taste and the learned profile at the given `exploration` level.
+Without a `query`, search queries are generated from the taste at the given `exploration` level.
 
 Response `202`:
 
@@ -36,11 +36,11 @@ Response `202`:
 { "id": "3f6c0e5a9b7d4c1e8a2f5d6b7c8e9f01" }
 ```
 
-`id` is an opaque string for the events endpoint. It is kept in memory only and is not the `runs.id` in the database.
+`id` is an opaque string for the events endpoint. It is kept in memory only.
 
 Errors:
 
-- `409` with `detail: "Set your taste first"` when no taste has been saved _(planned)_.
+- `409` with `detail: "Set your taste first"` when no taste has been saved.
 - `422` for invalid fields.
 
 ### `GET /api/runs/{run_id}/events`
@@ -59,7 +59,7 @@ Every event has a `type`. The shapes:
 
 | `type`              | Fields                                                                                                                                     | Meaning                                           |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `started`           | `query` (string or null), `count`, `exploration`, `run_id` (integer, _planned_)                                                            | The taste is loaded and the run began             |
+| `started`           | `query` (string or null), `count`, `exploration`                                                                                           | The taste is loaded and the run began             |
 | `downloading_model` | `model` (string)                                                                                                                           | A model is not cached yet and is being downloaded |
 | `queries`           | `queries`: list of `{query, tier}`                                                                                                         | Search queries were generated                     |
 | `fetching`          | none                                                                                                                                       | Clips are being downloaded                        |
@@ -70,7 +70,6 @@ Every event has a `type`. The shapes:
 
 - `tier` is `familiar`, `adjacent`, or `adventurous` for generated queries, and `null` when the user gave a `query`.
 - `recommended` is the model's YES/NO answer and `confidence` is the probability of that answer, a number from `0.5` to `1`.
-- `started` currently also carries `taste_version`. It is removed along with `taste_versions` ([database.md](database.md#moving-an-existing-database-to-this-schema)); `run_id` replaces it.
 - Every analysis has a verdict, so every analyzed song produces a `scored` event.
 - The artwork fields on `scored` are `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` ([artwork.md](artwork.md)).
 - Home maps these events to its status text ([home.md](home.md#events)).
@@ -79,28 +78,27 @@ Every event has a `type`. The shapes:
 
 ### The `Song` object
 
-Returned by `GET /api/songs`. A `scored` event carries the same fields except `analyzed_at` and `rating`.
+Returned by `GET /api/songs`. A `scored` event carries the same fields except `analyzed_at`.
 
-| Field                          | Type               | Notes                                                          |
-| ------------------------------ | ------------------ | -------------------------------------------------------------- |
-| `video_id`                     | string             | YouTube video id                                               |
-| `title`                        | string             |                                                                |
-| `artist`                       | string             |                                                                |
-| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                   |
-| `recommended`                  | boolean            | The model said YES                                             |
-| `confidence`                   | number             | Probability of the answer, `0.5` to `1`. Show as a percentage. |
-| `analyzed_at`                  | string             |                                                                |
-| `query`                        | string or null     | The search query that found the song. Null for old rows.       |
-| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                            |
-| `album_art_url`                | string or null     | _Planned._                                                     |
-| `album`                        | string or null     | _Planned._                                                     |
-| `musicbrainz_recording_id`     | string or null     | _Planned._                                                     |
-| `musicbrainz_release_group_id` | string or null     | _Planned._                                                     |
-| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.               |
+| Field                          | Type           | Notes                                                          |
+| ------------------------------ | -------------- | -------------------------------------------------------------- |
+| `video_id`                     | string         | YouTube video id                                               |
+| `title`                        | string         |                                                                |
+| `artist`                       | string         |                                                                |
+| `url`                          | string         | `https://www.youtube.com/watch?v=<video_id>`                   |
+| `recommended`                  | boolean        | The model said YES                                             |
+| `confidence`                   | number         | Probability of the answer, `0.5` to `1`. Show as a percentage. |
+| `analyzed_at`                  | string         |                                                                |
+| `query`                        | string or null | The search query that found the song. Null for old rows.       |
+| `thumbnail_url`                | string         | _Planned._ [artwork.md](artwork.md)                            |
+| `album_art_url`                | string or null | _Planned._                                                     |
+| `album`                        | string or null | _Planned._                                                     |
+| `musicbrainz_recording_id`     | string or null | _Planned._                                                     |
+| `musicbrainz_release_group_id` | string or null | _Planned._                                                     |
 
 ### `GET /api/songs`
 
-Status: changed. Today it returns every song as a bare list, ordered newest first, with `taste_version` and no artwork. The paginated response below replaces it, and the legacy `web/` page that reads it must be updated or retired when it ships.
+Status: changed. Today it returns every song as a bare list, ordered newest first, with no artwork. The paginated response below replaces it, and the legacy `web/` page that reads it must be updated or retired when it ships.
 
 Query parameters:
 
@@ -130,8 +128,7 @@ Response `200`:
 			"album_art_url": "https://coverartarchive.org/release-group/<mbid>/front-500",
 			"album": "Kid A",
 			"musicbrainz_recording_id": "<mbid>",
-			"musicbrainz_release_group_id": "<mbid>",
-			"rating": 1
+			"musicbrainz_release_group_id": "<mbid>"
 		}
 	],
 	"total": 128,
@@ -145,32 +142,6 @@ Response `200`:
 - Invalid values return `422`.
 
 How the page uses these is in [songs-page.md](songs-page.md).
-
-### `PUT /api/songs/{video_id}/feedback`
-
-Status: planned. See [learned-profile.md](learned-profile.md#rating-songs).
-
-Saves the user's rating of a song, replacing any earlier one. Saving again resets the rating's timestamp.
-
-Request body:
-
-| Field    | Type    | Rules                        |
-| -------- | ------- | ---------------------------- |
-| `rating` | integer | `1` (like) or `-1` (dislike) |
-
-Response `200`:
-
-```json
-{ "video_id": "abc123", "rating": -1, "created_at": "2026-10-10 14:10:00" }
-```
-
-Errors: `404` with `detail: "Unknown song"`, `422` for invalid fields.
-
-### `DELETE /api/songs/{video_id}/feedback`
-
-Status: planned.
-
-Clears the song's rating. Response `204` with no body, including when the song had no rating. `404` with `detail: "Unknown song"` when the song does not exist.
 
 ## Taste
 
@@ -210,13 +181,13 @@ The `profile` object:
 
 ### `GET /api/taste`
 
-Status: planned.
+Status: implemented.
 
 Returns the `Taste`, or `null` when none has been saved. `200` in both cases.
 
 ### `PUT /api/taste`
 
-Status: planned.
+Status: implemented.
 
 Request body: `{ "profile": { ... } }`. The server normalizes the fields, validates them against the [taste rules](taste.md#rules), and overwrites the saved taste.
 

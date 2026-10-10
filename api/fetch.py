@@ -83,6 +83,18 @@ def _select_middle_clip(info: dict, _ydl) -> list[dict]:
     return [{"start_time": start, "end_time": start + CLIP_SECONDS}]
 
 
+class _SilentLogger:
+    # Download errors are retried and reported by _download_song, so yt-dlp's own output is noise.
+    def debug(self, msg: str) -> None:
+        pass
+
+    def warning(self, msg: str) -> None:
+        pass
+
+    def error(self, msg: str) -> None:
+        pass
+
+
 def _download_song(video_id: str, workdir: Path) -> Song | None:
     """Fetch metadata and, for studio songs, download the clip; None if rejected or failed."""
     opts = {
