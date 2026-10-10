@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 import torch
 from transformers import AutoProcessor, MusicFlamingoForConditionalGeneration
@@ -16,6 +17,11 @@ OPEN_GUIDANCE = (
     "Say YES if the song shares qualities I like (mood, energy, production, vocal style), "
     "even if its genre or artist is not listed. Explicit exclusions and language requirements still mean NO."
 )
+
+
+class Verdict(NamedTuple):
+    recommended: bool
+    confidence: float  # Probability of the chosen answer, 0.5 to 1.
 
 
 def _pick_guidance(exploration: int) -> str:
@@ -58,7 +64,7 @@ def _get_answer_token_ids() -> tuple[int, int]:
     return yes_id, no_id
 
 
-def analyze(audio_path: Path, taste: str, exploration: int) -> str:
+def analyze(audio_path: Path, taste: str, exploration: int) -> Verdict:
     processor, model = _load()
     conversation = [
         {
@@ -85,4 +91,4 @@ def analyze(audio_path: Path, taste: str, exploration: int) -> str:
     yes_probability = torch.softmax(next_token_logits[[yes_id, no_id]].float(), dim=0)[0].item()
     is_yes = yes_probability >= 0.5
     confidence = yes_probability if is_yes else 1 - yes_probability
-    return f"Verdict: {'YES' if is_yes else 'NO'} ({confidence:.0%} confidence)"
+    return Verdict(is_yes, confidence)

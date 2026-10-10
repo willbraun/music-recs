@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pipeline
 import pytest
+from analyze import Verdict
 from appdb import AppDb
 from fetch import Song
 from huggingface_hub.errors import LocalEntryNotFoundError
@@ -98,9 +99,9 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         for video_id in state.found:
             yield _song(video_id, tmp_path), searches[0][0], searches[0][1]
 
-    def fake_analyze(clip_path: Path, taste: str, exploration: int) -> str:
+    def fake_analyze(clip_path: Path, taste: str, exploration: int) -> Verdict:
         state.analyzed.append((clip_path.stem, exploration))
-        return state.verdicts.get(clip_path.stem, "Verdict: YES (90% confidence)")
+        return state.verdicts.get(clip_path.stem, Verdict(True, 0.9))
 
     def fake_generate(taste: str, exploration: int, n: int):
         state.generated.append((exploration, n))
@@ -124,34 +125,34 @@ def test_run_with_query_stops_once_count_is_recommended(appdb: AppDb, stub_pipel
     assert [s["video_id"] for s in appdb.list_songs()] == ["b", "a"]
 
 
-def test_run_scored_event_includes_description_and_verdict(appdb: AppDb, stub_pipeline) -> None:
-    stub_pipeline.verdicts["a"] = "Verdict: NO (70% confidence)"
+def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a"]
 
     scored = [e for e in pipeline.run("q", 1, 50, appdb) if e["type"] == "scored"][0]
 
     assert scored["recommended"] is False
-    assert scored["description"] == "Verdict: NO (70% confidence)"
+    assert scored["confidence"] == 0.7
     assert scored["video_id"] == "a"
+    assert "description" not in scored
 
 
 def test_run_reports_running_recommended_count(appdb: AppDb, stub_pipeline) -> None:
-    stub_pipeline.verdicts["a"] = "Verdict: NO (70% confidence)"
+    stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
 
     analyzing = [e for e in pipeline.run("q", 2, 50, appdb) if e["type"] == "analyzing"]
 
     assert [(e["index"], e["recommended_count"]) for e in analyzing] == [(1, 0), (2, 0), (3, 1)]
 
 
-def test_run_drops_analyses_without_a_verdict(appdb: AppDb, stub_pipeline) -> None:
-    stub_pipeline.verdicts["a"] = "unparseable"
+def test_run_stores_not_recommended_songs(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    events = list(pipeline.run("q", 1, 50, appdb))
+    list(pipeline.run("q", 1, 50, appdb))
 
-    assert [e["video_id"] for e in events if e["type"] == "scored"] == ["b"]
-    assert appdb.get_seen_ids() == {"b"}
-    assert events[-1]["analyzed"] == 2
+    stored = {s["video_id"]: (s["recommended"], s["confidence"]) for s in appdb.list_songs()}
+    assert stored == {"a": (False, 0.7), "b": (True, 0.9)}
 
 
 def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path: Path) -> None:
@@ -161,7 +162,7 @@ def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path:
 
 
 def test_run_passes_seen_ids_to_the_search(appdb: AppDb, stub_pipeline) -> None:
-    appdb.add_song("seen", "t", "a", "u", "Verdict: YES (90% confidence)", "q", 1)
+    appdb.add_song("seen", "t", "a", "u", True, 0.9, "q", 1)
 
     list(pipeline.run("q", 1, 50, appdb))
 

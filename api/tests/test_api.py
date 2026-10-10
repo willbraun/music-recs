@@ -173,13 +173,14 @@ def test_get_run_events_unknown_run_is_404(client: TestClient) -> None:
 
 def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
     appdb: AppDb = api.app.state.appdb
-    appdb.add_song("yes", "Yes", "A", "u", "Verdict: YES (90% confidence)", "q", 1)
-    appdb.add_song("no", "No", "A", "u", "Verdict: NO (60% confidence)", "q", 1)
-    appdb.add_song("none", "None", "A", "u", "garbled", "q", 1)
+    appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q", 1)
+    appdb.add_song("no", "No", "A", "u", False, 0.6, "q", 1)
 
     songs = {s["video_id"]: s for s in client.get("/api/songs").json()}
 
-    assert {k: v["recommended"] for k, v in songs.items()} == {"yes": True, "no": False, "none": False}
+    assert {k: v["recommended"] for k, v in songs.items()} == {"yes": True, "no": False}
+    assert songs["yes"]["confidence"] == 0.9
+    assert "description" not in songs["yes"]
     assert songs["yes"]["title"] == "Yes"
 
 

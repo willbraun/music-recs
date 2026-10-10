@@ -4,12 +4,14 @@ The app uses one SQLite file, `api/app.db`, accessed through `AppDb` in [appdb.p
 
 ## Migrations
 
-The schema is versioned by numbered SQL files in [api/migrations/](../api/migrations/), applied by [migrate.py](../api/migrate.py) when `AppDb` is constructed.
+The schema is versioned by timestamped SQL files in [api/migrations/](../api/migrations/), applied by [migrate.py](../api/migrate.py) when `AppDb` is constructed.
 
-- Files are named `NNNN_name.sql`, numbered in order with no gaps. The file number is the schema version, stored in `PRAGMA user_version`.
-- On startup each file newer than the stored version runs in one transaction together with the version bump, so a failed migration leaves the database at the previous version. Files must not contain `BEGIN` or `COMMIT`.
-- A database whose version is newer than the newest file is rejected.
-- To change the schema, add the next numbered file. Never edit one that has been applied.
+- Files are named `YYYYMMDDHHMMSS_name.sql` (UTC). Timestamps must be unique. They are not numbered in sequence, so two branches can each add a migration without colliding.
+- Applied files are recorded in the `schema_migrations` table (`version INTEGER PRIMARY KEY`, the timestamp). `PRAGMA user_version` is not used because it is a 32-bit integer and cannot hold a 14-digit timestamp.
+- On startup each file whose timestamp is not in `schema_migrations` runs in one transaction together with its record, in timestamp order, so a failed migration leaves the database as it was. Files must not contain `BEGIN` or `COMMIT`.
+- A database that records a migration this code has no file for is rejected.
+- To change the schema, add a new file. Never edit one that has been applied to a database you want to keep.
+- The initial migration was rewritten when `description` became `verdict` and `confidence`. A database created before that has the old `songs` schema and no `schema_migrations` table, so it must be recreated.
 - SQLite cannot alter a constraint in place, so changing one means creating a new table, copying rows, dropping the old table, and renaming.
 - The database uses WAL mode, so `app.db-wal` and `app.db-shm` appear next to it.
 
@@ -25,21 +27,22 @@ The original schema had a `taste_versions` table and `songs.taste_version`. They
 
 One row per analyzed song. Songs are permanent, since `feedback` refers to them.
 
-| Column        | Type    | Constraints                         | Description                                                                                                                           |
-| ------------- | ------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `video_id`    | TEXT    | PRIMARY KEY                         | YouTube video id                                                                                                                      |
-| `title`       | TEXT    | NOT NULL                            | Song title                                                                                                                            |
-| `artist`      | TEXT    | NOT NULL                            | Artist name                                                                                                                           |
-| `url`         | TEXT    | NOT NULL                            | `https://www.youtube.com/watch?v=<video_id>`                                                                                          |
-| `description` | TEXT    | NOT NULL                            | Music Flamingo's verdict for the clip, `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`, from the YES/NO token logits  |
-| `analyzed_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the song was analyzed                                                                                                            |
-| `query`       | TEXT    |                                     | Search query that found the song. NULL for rows from before this column existed.                                                      |
-| `run_id`      | INTEGER | REFERENCES `runs(id)`               | The run that analyzed the song, which holds the taste and learned profile it used. NULL for songs analyzed before runs were recorded. |
+| Column        | Type    | Constraints                                      | Description                                                                                                                           |
+| ------------- | ------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `video_id`    | TEXT    | PRIMARY KEY                                      | YouTube video id                                                                                                                      |
+| `title`       | TEXT    | NOT NULL                                         | Song title                                                                                                                            |
+| `artist`      | TEXT    | NOT NULL                                         | Artist name                                                                                                                           |
+| `url`         | TEXT    | NOT NULL                                         | `https://www.youtube.com/watch?v=<video_id>`                                                                                          |
+| `verdict`     | INTEGER | NOT NULL, CHECK (`verdict` IN (0, 1))            | Music Flamingo's answer for the clip: `1` is YES (recommended), `0` is NO. Decided from the YES/NO token logits                       |
+| `confidence`  | REAL    | NOT NULL, CHECK (`confidence` BETWEEN 0.5 AND 1) | Probability of the chosen answer, from the same logits. Stored as a fraction, not a percentage                                        |
+| `analyzed_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP              | When the song was analyzed                                                                                                            |
+| `query`       | TEXT    |                                                  | Search query that found the song. NULL for rows from before this column existed.                                                      |
+| `run_id`      | INTEGER | REFERENCES `runs(id)`                            | The run that analyzed the song, which holds the taste and learned profile it used. NULL for songs analyzed before runs were recorded. |
 
 - `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first and would fail on a rated song.
 - `AppDb.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
 - How the display columns are filled is described in [artwork.md](artwork.md).
-- Songs whose analysis has no verdict are not stored. A song counts as recommended when its description starts with `Verdict: YES`; this is derived on read, not stored.
+- Every analyzed song has a verdict, so every analyzed song is stored. `AppDb.list_songs` returns `verdict` as `recommended` (boolean).
 
 `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` are planned in [artwork.md](artwork.md) and are not in the schema yet. They arrive in a later migration, which also runs `UPDATE songs SET thumbnail_url = 'https://img.youtube.com/vi/' || video_id || '/hqdefault.jpg'` so every existing row has a thumbnail.
 

@@ -33,25 +33,29 @@ class AppDb:
         title: str,
         artist: str,
         url: str,
-        description: str,
+        verdict: bool,
+        confidence: float,
         query: str,
         taste_version: int,
     ) -> None:
         # An upsert, not INSERT OR REPLACE, which deletes the row and would trip feedback's foreign key.
         with connect(self._path) as conn:
             conn.execute(
-                "INSERT INTO songs (video_id, title, artist, url, description, query, taste_version) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO songs (video_id, title, artist, url, verdict, confidence, query, taste_version) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (video_id) DO UPDATE SET title = excluded.title, artist = excluded.artist, "
-                "url = excluded.url, description = excluded.description, query = excluded.query, "
-                "taste_version = excluded.taste_version, analyzed_at = CURRENT_TIMESTAMP",
-                (video_id, title, artist, url, description, query, taste_version),
+                "url = excluded.url, verdict = excluded.verdict, confidence = excluded.confidence, "
+                "query = excluded.query, taste_version = excluded.taste_version, analyzed_at = CURRENT_TIMESTAMP",
+                (video_id, title, artist, url, verdict, confidence, query, taste_version),
             )
 
     def list_songs(self) -> list[dict]:
         with connect(self._path) as conn:
             rows = conn.execute(
-                "SELECT video_id, title, artist, url, description, analyzed_at, taste_version, query "
+                "SELECT video_id, title, artist, url, verdict, confidence, analyzed_at, taste_version, query "
                 "FROM songs ORDER BY analyzed_at DESC, rowid DESC"
             )
-            return [dict(row) for row in rows]
+            songs = [dict(row) for row in rows]
+        for song in songs:
+            song["recommended"] = bool(song.pop("verdict"))
+        return songs

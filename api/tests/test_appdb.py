@@ -6,17 +6,25 @@ from appdb import AppDb
 
 
 def _add_song(db: AppDb, video_id: str = "abc", taste_version: int = 1) -> None:
-    db.add_song(video_id, "Title", "Artist", f"https://www.youtube.com/watch?v={video_id}", "Verdict: YES (90% confidence)", "q", taste_version)
+    db.add_song(video_id, "Title", "Artist", f"https://www.youtube.com/watch?v={video_id}", True, 0.9, "q", taste_version)
 
 
 def test_add_song_overwrites_existing_row(tmp_path: Path) -> None:
     db = AppDb(tmp_path / "app.db")
     _add_song(db)
-    db.add_song("abc", "New", "Artist", "u", "Verdict: NO (60% confidence)", "q2", 1)
+    db.add_song("abc", "New", "Artist", "u", False, 0.6, "q2", 1)
 
     songs = db.list_songs()
     assert [s["title"] for s in songs] == ["New"]
+    assert (songs[0]["recommended"], songs[0]["confidence"]) == (False, 0.6)
     assert db.get_seen_ids() == {"abc"}
+
+
+def test_confidence_must_be_between_half_and_one(tmp_path: Path) -> None:
+    db = AppDb(tmp_path / "app.db")
+    for confidence in (0.3, 1.2):
+        with pytest.raises(sqlite3.IntegrityError):
+            db.add_song("abc", "T", "A", "u", True, confidence, "q", 1)
 
 
 def test_feedback_rating_must_be_like_or_dislike(tmp_path: Path) -> None:

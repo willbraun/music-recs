@@ -70,13 +70,19 @@ def _stub_model(monkeypatch: pytest.MonkeyPatch, yes_logit: float, no_logit: flo
 def test_analyze_reports_yes_with_confidence(monkeypatch: pytest.MonkeyPatch) -> None:
     _stub_model(monkeypatch, yes_logit=2.0, no_logit=0.0)
 
-    assert analyze.analyze(Path("clip.wav"), "taste", 50) == "Verdict: YES (88% confidence)"
+    verdict = analyze.analyze(Path("clip.wav"), "taste", 50)
+
+    assert verdict.recommended is True
+    assert verdict.confidence == pytest.approx(0.8808, abs=1e-4)
 
 
 def test_analyze_reports_no_with_confidence(monkeypatch: pytest.MonkeyPatch) -> None:
     _stub_model(monkeypatch, yes_logit=0.0, no_logit=2.0)
 
-    assert analyze.analyze(Path("clip.wav"), "taste", 50) == "Verdict: NO (88% confidence)"
+    verdict = analyze.analyze(Path("clip.wav"), "taste", 50)
+
+    assert verdict.recommended is False
+    assert verdict.confidence == pytest.approx(0.8808, abs=1e-4)
 
 
 def test_analyze_prompt_includes_taste_guidance_and_audio(monkeypatch: pytest.MonkeyPatch) -> None:

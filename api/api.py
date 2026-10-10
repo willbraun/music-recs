@@ -14,7 +14,6 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pipeline import run
 from pydantic import BaseModel, Field, StringConstraints
-from recommend import get_verdict
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 KEEPALIVE_SECONDS = 15
@@ -106,8 +105,7 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
 
 @app.get("/api/songs")
 def list_songs(request: Request) -> list[dict]:
-    songs = request.app.state.appdb.list_songs()
-    return [{**song, "recommended": get_verdict(song["description"]) is True} for song in songs]
+    return request.app.state.appdb.list_songs()
 
 
 # Mounted last so it never shadows the /api routes.

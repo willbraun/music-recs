@@ -14,7 +14,7 @@ Props are a `Song` as returned by `GET /api/songs` or a `scored` event:
 | `album_art_url`   | Preferred image                                    |
 | `thumbnail_url`   | Fallback image                                     |
 | `url`             | "Open on YouTube" link                             |
-| `description`     | Parsed for the confidence value                    |
+| `confidence`      | Confidence badge, as a percentage                  |
 | `recommended`     | Shows a badge on the Songs page when false         |
 
 All new fields are nullable. See [artwork.md](artwork.md).
@@ -23,7 +23,7 @@ All new fields are nullable. See [artwork.md](artwork.md).
 
 - Square image (1:1) on top, rounded corners, `object-cover`. A 16:9 YouTube thumbnail is center-cropped.
 - Below the image: title (one line, ellipsis, full title in a tooltip), artist (one line), and album (one line, muted) if present.
-- A confidence badge (for example "87%") in a corner of the image. The value comes from `Verdict: YES (N% confidence)` in `description`; if it cannot be parsed, no badge is shown. The parser is a small tested function, not inline regex in the component.
+- A confidence badge (for example "87%") in a corner of the image. The value comes from `confidence`, a fraction rounded to a whole percent.
 - On the Songs page, songs with `recommended = false` show a muted "Not recommended" badge.
 - Fixed width in the carousel; fluid width in the grid.
 

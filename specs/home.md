@@ -72,8 +72,6 @@ Handling `scored` (matched to its loading card by `video_id`):
 - `recommended: true`: the loading card turns into a full [song card](song-card.md) in place. If this is the first recommendation, the phase becomes `streaming`.
 - `recommended: false`: the loading card is removed. Not-recommended songs are not shown on Home. They appear on the Songs page with the right filter.
 
-Analyses with no verdict produce no `scored` event. Their loading card is removed when the next `analyzing` event or `done` arrives.
-
 `done` with zero recommendations shows an empty state: "No new recommendations this time. Try again for a fresh batch." The CTA is enabled again.
 
 ## Energy orb

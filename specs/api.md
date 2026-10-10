@@ -57,21 +57,21 @@ A server-sent event stream of the run's progress. Content type `text/event-strea
 
 Every event has a `type`. The shapes:
 
-| `type`              | Fields                                                                                                                                      | Meaning                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `started`           | `query` (string or null), `count`, `exploration`, `run_id` (integer, _planned_)                                                             | The taste is loaded and the run began             |
-| `downloading_model` | `model` (string)                                                                                                                            | A model is not cached yet and is being downloaded |
-| `queries`           | `queries`: list of `{query, tier}`                                                                                                          | Search queries were generated                     |
-| `fetching`          | none                                                                                                                                        | Clips are being downloaded                        |
-| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url` (_planned_)                            | The audio model is listening to a song            |
-| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `description`, `recommended` (boolean), plus the artwork fields (_planned_) | A verdict was reached and the song was saved      |
-| `done`              | `analyzed`, `recommended`, `count`                                                                                                          | The run finished                                  |
-| `error`             | `message` (string)                                                                                                                          | The run failed. This is the last event.           |
+| `type`              | Fields                                                                                                                                     | Meaning                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `started`           | `query` (string or null), `count`, `exploration`, `run_id` (integer, _planned_)                                                            | The taste is loaded and the run began             |
+| `downloading_model` | `model` (string)                                                                                                                           | A model is not cached yet and is being downloaded |
+| `queries`           | `queries`: list of `{query, tier}`                                                                                                         | Search queries were generated                     |
+| `fetching`          | none                                                                                                                                       | Clips are being downloaded                        |
+| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url` (_planned_)                           | The audio model is listening to a song            |
+| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `recommended` (boolean), `confidence`, plus the artwork fields (_planned_) | The song was analyzed and saved                   |
+| `done`              | `analyzed`, `recommended`, `count`                                                                                                         | The run finished                                  |
+| `error`             | `message` (string)                                                                                                                         | The run failed. This is the last event.           |
 
 - `tier` is `familiar`, `adjacent`, or `adventurous` for generated queries, and `null` when the user gave a `query`.
-- `description` is `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`.
+- `recommended` is the model's YES/NO answer and `confidence` is the probability of that answer, a number from `0.5` to `1`.
 - `started` currently also carries `taste_version`. It is removed along with `taste_versions` ([database.md](database.md#moving-an-existing-database-to-this-schema)); `run_id` replaces it.
-- Analyses without a verdict produce no `scored` event.
+- Every analysis has a verdict, so every analyzed song produces a `scored` event.
 - The artwork fields on `scored` are `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` ([artwork.md](artwork.md)).
 - Home maps these events to its status text ([home.md](home.md#events)).
 
@@ -81,22 +81,22 @@ Every event has a `type`. The shapes:
 
 Returned by `GET /api/songs`. A `scored` event carries the same fields except `analyzed_at` and `rating`.
 
-| Field                          | Type               | Notes                                                           |
-| ------------------------------ | ------------------ | --------------------------------------------------------------- |
-| `video_id`                     | string             | YouTube video id                                                |
-| `title`                        | string             |                                                                 |
-| `artist`                       | string             |                                                                 |
-| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                    |
-| `description`                  | string             | `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)` |
-| `analyzed_at`                  | string             |                                                                 |
-| `query`                        | string or null     | The search query that found the song. Null for old rows.        |
-| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                             |
-| `album_art_url`                | string or null     | _Planned._                                                      |
-| `album`                        | string or null     | _Planned._                                                      |
-| `musicbrainz_recording_id`     | string or null     | _Planned._                                                      |
-| `musicbrainz_release_group_id` | string or null     | _Planned._                                                      |
-| `recommended`                  | boolean            | Derived on read: the description starts with `Verdict: YES`     |
-| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.                |
+| Field                          | Type               | Notes                                                          |
+| ------------------------------ | ------------------ | -------------------------------------------------------------- |
+| `video_id`                     | string             | YouTube video id                                               |
+| `title`                        | string             |                                                                |
+| `artist`                       | string             |                                                                |
+| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                   |
+| `recommended`                  | boolean            | The model said YES                                             |
+| `confidence`                   | number             | Probability of the answer, `0.5` to `1`. Show as a percentage. |
+| `analyzed_at`                  | string             |                                                                |
+| `query`                        | string or null     | The search query that found the song. Null for old rows.       |
+| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                            |
+| `album_art_url`                | string or null     | _Planned._                                                     |
+| `album`                        | string or null     | _Planned._                                                     |
+| `musicbrainz_recording_id`     | string or null     | _Planned._                                                     |
+| `musicbrainz_release_group_id` | string or null     | _Planned._                                                     |
+| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.               |
 
 ### `GET /api/songs`
 
@@ -122,7 +122,8 @@ Response `200`:
 			"title": "Everything In Its Right Place",
 			"artist": "Radiohead",
 			"url": "https://www.youtube.com/watch?v=abc123",
-			"description": "Verdict: YES (87% confidence)",
+			"recommended": true,
+			"confidence": 0.87,
 			"analyzed_at": "2026-10-10 14:03:22",
 			"query": "experimental electronic rock",
 			"thumbnail_url": "https://img.youtube.com/vi/abc123/hqdefault.jpg",
@@ -130,7 +131,6 @@ Response `200`:
 			"album": "Kid A",
 			"musicbrainz_recording_id": "<mbid>",
 			"musicbrainz_release_group_id": "<mbid>",
-			"recommended": true,
 			"rating": 1
 		}
 	],

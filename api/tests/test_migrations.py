@@ -19,7 +19,7 @@ def test_fresh_database_is_migrated_and_seeded(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     AppDb(path)
 
-    assert _query(path, "PRAGMA user_version")[0][0] == 1
+    assert [r[0] for r in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000]
     assert AppDb(path).get_current_taste() == (1, SEED_TASTE)
     assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
 
@@ -27,7 +27,7 @@ def test_fresh_database_is_migrated_and_seeded(tmp_path: Path) -> None:
 def test_reopening_is_a_no_op(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     db = AppDb(path)
-    db.add_song("abc", "Title", "Artist", "u", "Verdict: YES (90% confidence)", "q", 1)
+    db.add_song("abc", "Title", "Artist", "u", True, 0.9, "q", 1)
 
     AppDb(path)
 
@@ -35,11 +35,11 @@ def test_reopening_is_a_no_op(tmp_path: Path) -> None:
     assert len(_query(path, "SELECT 1 FROM taste_versions")) == 1
 
 
-def test_failed_migration_rolls_back_and_keeps_version(tmp_path: Path) -> None:
+def test_failed_migration_rolls_back_and_is_not_recorded(tmp_path: Path) -> None:
     migrations = tmp_path / "migrations"
     migrations.mkdir()
-    (migrations / "0001_ok.sql").write_text("CREATE TABLE a (id INTEGER);")
-    (migrations / "0002_bad.sql").write_text("CREATE TABLE b (id INTEGER);\nINSERT INTO missing VALUES (1);")
+    (migrations / "20260101000000_ok.sql").write_text("CREATE TABLE a (id INTEGER);")
+    (migrations / "20260102000000_bad.sql").write_text("CREATE TABLE b (id INTEGER);\nINSERT INTO missing VALUES (1);")
 
     path = tmp_path / "x.db"
     conn = sqlite3.connect(path)
@@ -47,16 +47,34 @@ def test_failed_migration_rolls_back_and_keeps_version(tmp_path: Path) -> None:
         apply_migrations(conn, migrations)
     conn.close()
 
-    assert _query(path, "PRAGMA user_version")[0][0] == 1
+    assert [r[0] for r in _query(path, "SELECT version FROM schema_migrations")] == [20260101000000]
     tables = {r["name"] for r in _query(path, "SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert tables == {"a"}
+    assert tables == {"a", "schema_migrations"}
 
 
-def test_migration_numbers_must_be_consecutive(tmp_path: Path) -> None:
+def test_migration_older_than_the_latest_applied_still_runs(tmp_path: Path) -> None:
     migrations = tmp_path / "migrations"
     migrations.mkdir()
-    (migrations / "0001_a.sql").write_text("SELECT 1;")
-    (migrations / "0003_c.sql").write_text("SELECT 1;")
+    (migrations / "20260102000000_b.sql").write_text("CREATE TABLE b (id INTEGER);")
+    path = tmp_path / "x.db"
+    conn = sqlite3.connect(path)
+    apply_migrations(conn, migrations)
+
+    (migrations / "20260101000000_a.sql").write_text("CREATE TABLE a (id INTEGER);")
+    apply_migrations(conn, migrations)
+    conn.close()
+
+    versions = {r[0] for r in _query(path, "SELECT version FROM schema_migrations")}
+    tables = {r["name"] for r in _query(path, "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert versions == {20260101000000, 20260102000000}
+    assert {"a", "b"} <= tables
+
+
+def test_migration_timestamps_must_be_unique(tmp_path: Path) -> None:
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    (migrations / "20260101000000_a.sql").write_text("SELECT 1;")
+    (migrations / "20260101000000_b.sql").write_text("SELECT 1;")
 
     conn = sqlite3.connect(tmp_path / "x.db")
     with pytest.raises(ValueError):
@@ -64,13 +82,25 @@ def test_migration_numbers_must_be_consecutive(tmp_path: Path) -> None:
     conn.close()
 
 
-def test_database_newer_than_code_is_rejected(tmp_path: Path) -> None:
+def test_migration_file_names_must_have_a_timestamp(tmp_path: Path) -> None:
     migrations = tmp_path / "migrations"
     migrations.mkdir()
     (migrations / "0001_a.sql").write_text("SELECT 1;")
 
     conn = sqlite3.connect(tmp_path / "x.db")
-    conn.execute("PRAGMA user_version = 5")
+    with pytest.raises(ValueError):
+        apply_migrations(conn, migrations)
+    conn.close()
+
+
+def test_database_with_unknown_migration_is_rejected(tmp_path: Path) -> None:
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    (migrations / "20260101000000_a.sql").write_text("SELECT 1;")
+
+    conn = sqlite3.connect(tmp_path / "x.db")
+    conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
+    conn.execute("INSERT INTO schema_migrations VALUES (20270101000000)")
     with pytest.raises(RuntimeError):
         apply_migrations(conn, migrations)
     conn.close()

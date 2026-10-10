@@ -64,7 +64,6 @@ def run(
     from analyze import analyze
     from queries import MODEL_ID as QUERY_MODEL_ID
     from queries import generate_queries
-    from recommend import get_verdict
 
     # 1. Load the current taste and the ids that must not be recommended again.
     taste_version, taste = appdb.get_current_taste()
@@ -110,23 +109,22 @@ def run(
                     **result,
                 }
 
-                # 4. Ask the audio model for a verdict; analyses without one are dropped.
-                description = analyze(song.clip_path, taste, exploration)
+                # 4. Ask the audio model for a verdict.
+                verdict = analyze(song.clip_path, taste, exploration)
                 song.clip_path.unlink(missing_ok=True)
-                is_recommended = get_verdict(description)
-                if is_recommended is None:
-                    continue
 
                 # 5. Cache the song so later runs skip it, then report the result.
-                appdb.add_song(song.video_id, song.title, song.artist, song.url, description, song_query, taste_version)
+                appdb.add_song(
+                    song.video_id, song.title, song.artist, song.url, verdict.recommended, verdict.confidence, song_query, taste_version
+                )
 
-                recommended += is_recommended
+                recommended += verdict.recommended
                 yield {
                     "type": "scored",
                     "index": analyzed,
                     **result,
-                    "description": description,
-                    "recommended": is_recommended,
+                    "recommended": verdict.recommended,
+                    "confidence": verdict.confidence,
                 }
                 if recommended >= count:
                     break

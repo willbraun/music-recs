@@ -1,5 +1,5 @@
--- Baseline schema. An app.db from before migrations may already have taste_versions.
-CREATE TABLE IF NOT EXISTS taste_versions (
+-- Baseline schema.
+CREATE TABLE taste_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL,
     source TEXT NOT NULL,
@@ -7,12 +7,14 @@ CREATE TABLE IF NOT EXISTS taste_versions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- verdict: 1 = the model said YES, 0 = NO. confidence: probability of that answer, 0.5 to 1.
 CREATE TABLE songs (
     video_id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
     url TEXT NOT NULL,
-    description TEXT NOT NULL,
+    verdict INTEGER NOT NULL CHECK (verdict IN (0, 1)),
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0.5 AND 1),
     analyzed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     taste_version INTEGER REFERENCES taste_versions (id),
     query TEXT

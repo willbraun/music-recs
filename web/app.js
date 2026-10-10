@@ -34,7 +34,16 @@ function createSongItem(song, meta = '') {
 		{ className: song.recommended ? 'recommended' : '' },
 		createSongLink(song),
 		createElement('span', { className: 'meta' }, meta),
-		createElement('details', {}, createElement('summary', {}, 'Description'), createElement('p', {}, song.description)),
+		createElement(
+			'details',
+			{},
+			createElement('summary', {}, 'Description'),
+			createElement(
+				'p',
+				{},
+				`Verdict: ${song.recommended ? 'YES' : 'NO'} (${Math.round(song.confidence * 100)}% confidence)`,
+			),
+		),
 	)
 }
 
