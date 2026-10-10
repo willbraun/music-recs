@@ -2,7 +2,7 @@
 
 Route `/songs`. Browse every analyzed song in the cache, with filters and pagination.
 
-Related: [frontend.md](frontend.md), [song-card.md](song-card.md), [player.md](player.md), [database.md](database.md).
+Related: [frontend.md](frontend.md), [api.md](api.md), [song-card.md](song-card.md), [player.md](player.md), [database.md](database.md).
 
 ## Page
 
@@ -15,20 +15,18 @@ Related: [frontend.md](frontend.md), [song-card.md](song-card.md), [player.md](p
 
 ## Filters
 
-| Filter        | Control                          | Values                            | Default      |
-| ------------- | -------------------------------- | --------------------------------- | ------------ |
-| Verdict       | Segmented control or `Select`    | Recommended, Not recommended, All | Recommended  |
-| Search        | Text `Input`, debounced (300 ms) | Matches title, artist, or album   | Empty        |
-| Taste version | `Select`                         | Any, or a specific taste version  | Any          |
-| Sort          | `Select`                         | Newest first, Oldest first        | Newest first |
+| Filter  | Control                          | Values                            | Default      |
+| ------- | -------------------------------- | --------------------------------- | ------------ |
+| Verdict | Segmented control or `Select`    | Recommended, Not recommended, All | Recommended  |
+| Search  | Text `Input`, debounced (300 ms) | Matches title, artist, or album   | Empty        |
+| Sort    | `Select`                         | Newest first, Oldest first        | Newest first |
 
 - A "Clear filters" button appears when any filter differs from the default.
 - Changing any filter resets to page 1.
-- The Taste version options are the distinct `taste_version` values present in the cache. Songs with a NULL taste version only appear under "Any". The options come from the response (see `taste_versions` below).
 
 State lives in the URL query string so the back button, reload, and links work. Only non-default values are written.
 
-`/songs?recommended=all&q=radio&taste_version=2&sort=oldest&page=3`
+`/songs?recommended=all&q=radio&sort=oldest&page=3`
 
 The URL is the source of truth: the page reads from it and filter controls update it with `goto(..., { keepFocus: true, replaceState: true })`. Page changes use normal history entries.
 
@@ -41,54 +39,7 @@ The URL is the source of truth: the page reads from it and filter controls updat
 
 ## API
 
-`GET /api/songs` changes from returning every song as a bare list to a paginated response. The legacy `web/` page that reads this endpoint must be updated or retired when this ships, because the response shape changes.
-
-### Query parameters
-
-| Parameter       | Type   | Default  | Description                                                                                           |
-| --------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------- |
-| `page`          | int    | 1        | 1-based page number, `>= 1`                                                                           |
-| `page_size`     | int    | 24       | `1` to `100`                                                                                          |
-| `recommended`   | bool   | omitted  | `true` returns only recommended songs, `false` only not recommended, omitted returns all              |
-| `q`             | string | omitted  | Case-insensitive substring match on `title`, `artist`, or `album`. Trimmed, 1 to 200 characters.      |
-| `taste_version` | int    | omitted  | Exact match on `songs.taste_version`                                                                  |
-| `sort`          | enum   | `newest` | `newest` is `analyzed_at DESC, rowid DESC` (same as today). `oldest` is `analyzed_at ASC, rowid ASC`. |
-
-Invalid values return 422 (FastAPI validation). The UI's "Recommended" default sends `recommended=true`; "All" omits the parameter.
-
-### Response
-
-```json
-{
-	"items": [
-		{
-			"video_id": "abc123",
-			"title": "Everything In Its Right Place",
-			"artist": "Radiohead",
-			"url": "https://www.youtube.com/watch?v=abc123",
-			"description": "Verdict: YES (87% confidence)",
-			"analyzed_at": "2026-10-10 14:03:22",
-			"taste_version": 1,
-			"query": "experimental electronic rock",
-			"thumbnail_url": "https://img.youtube.com/vi/abc123/hqdefault.jpg",
-			"album_art_url": "https://coverartarchive.org/release-group/<mbid>/front-500",
-			"album": "Kid A",
-			"musicbrainz_recording_id": "<mbid>",
-			"musicbrainz_release_group_id": "<mbid>",
-			"recommended": true
-		}
-	],
-	"total": 128,
-	"page": 1,
-	"page_size": 24,
-	"taste_versions": [1, 2]
-}
-```
-
-- `total` is the count of songs matching the filters, ignoring paging.
-- `taste_versions` is the sorted list of distinct non-null taste versions in the whole cache, independent of the filters, so the Select always shows every option.
-- `recommended` is still derived on read, as today.
-- A page beyond the last returns `items: []` with the correct `total`; the UI handles the redirect.
+The page uses `GET /api/songs`, which returns a paginated response. The parameters and response are in [api.md](api.md#get-apisongs). The UI's "Recommended" default sends `recommended=true`, and "All" omits the parameter. A page beyond the last returns `items: []`, and the UI handles the redirect.
 
 ### Implementation notes
 

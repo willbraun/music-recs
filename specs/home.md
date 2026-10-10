@@ -19,6 +19,10 @@ Related: [frontend.md](frontend.md), [song-card.md](song-card.md), [player.md](p
 
 The orb and controls are the hero. The carousel sits below once a run has produced results.
 
+## Requires a taste
+
+Home is only shown when a taste exists. Without one the layout redirects to `/taste` ([taste.md](taste.md#first-run)), so the orb and controls never render on a fresh database. Home has no setup UI of its own.
+
 ## Find new music controls
 
 - A primary shadcn-svelte `Button` labelled "Find new music" is the call to action.

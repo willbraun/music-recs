@@ -73,7 +73,7 @@ The frontend picks an image in this order: `album_art_url`, then `thumbnail_url`
 
 ## Existing rows
 
-- The migration fills `thumbnail_url` for every existing row from its `video_id`. See [database.md](database.md#migration).
+- The migration fills `thumbnail_url` for every existing row from its `video_id`. See [database.md](database.md#migrations).
 - Existing rows keep NULL for the four MusicBrainz-derived columns, and the cards use the YouTube thumbnail. A one-time backfill command that looks up recommended songs with NULL `musicbrainz_recording_id` may be added later. Because "not looked up" and "no match" are both NULL, such a backfill would retry songs that had no match.
 
 ## Testing
