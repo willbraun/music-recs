@@ -12,7 +12,7 @@ Status: each endpoint is marked **implemented** (in the code today), **changed**
 
 ## Runs
 
-A run finds and analyzes new songs. Runs are queued and processed one at a time, since there is one model on one device.
+A run finds and scores new songs. Runs are queued and processed one at a time, since there is one model on one device.
 
 ### `POST /api/runs`
 
@@ -28,7 +28,7 @@ Request body:
 | `count`       | integer | `3`     | `1` to `50`                  |
 | `exploration` | integer | `50`    | `0` to `100`                 |
 
-Without a `query`, search queries are generated from the taste and the learned profile at the given `exploration` level.
+Without a `query`, search queries are generated from the taste and the user's recent liked songs at the given `exploration` level. `exploration` also sets the score threshold for a recommendation ([scoring.md](scoring.md#blend-and-threshold)).
 
 Response `202`:
 
@@ -36,7 +36,7 @@ Response `202`:
 { "id": "3f6c0e5a9b7d4c1e8a2f5d6b7c8e9f01" }
 ```
 
-`id` is an opaque string for the events endpoint. It is kept in memory only and is not the `runs.id` in the database.
+`id` is an opaque string for the events endpoint. It is kept in memory only.
 
 Errors:
 
@@ -57,21 +57,19 @@ A server-sent event stream of the run's progress. Content type `text/event-strea
 
 Every event has a `type`. The shapes:
 
-| `type`              | Fields                                                                                                                                      | Meaning                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `started`           | `query` (string or null), `count`, `exploration`, `run_id` (integer, _planned_)                                                             | The taste is loaded and the run began             |
-| `downloading_model` | `model` (string)                                                                                                                            | A model is not cached yet and is being downloaded |
-| `queries`           | `queries`: list of `{query, tier}`                                                                                                          | Search queries were generated                     |
-| `fetching`          | none                                                                                                                                        | Clips are being downloaded                        |
-| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url` (_planned_)                            | The audio model is listening to a song            |
-| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `description`, `recommended` (boolean), plus the artwork fields (_planned_) | A verdict was reached and the song was saved      |
-| `done`              | `analyzed`, `recommended`, `count`                                                                                                          | The run finished                                  |
-| `error`             | `message` (string)                                                                                                                          | The run failed. This is the last event.           |
+| `type`              | Fields                                                                                                                                                 | Meaning                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `started`           | `query` (string or null), `count`, `exploration`                                                                                                       | The taste is loaded and the run began             |
+| `downloading_model` | `model` (string)                                                                                                                                       | A model is not cached yet and is being downloaded |
+| `queries`           | `queries`: list of `{query, tier}`                                                                                                                     | Search queries were generated                     |
+| `fetching`          | none                                                                                                                                                   | Clips are being downloaded                        |
+| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url` (_planned_)                                       | A song's clip is being embedded and scored        |
+| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `score` (number, 0 to 1), `recommended` (boolean), plus the artwork fields (_planned_) | The song was scored and saved                     |
+| `done`              | `analyzed`, `recommended`, `count`                                                                                                                     | The run finished                                  |
+| `error`             | `message` (string)                                                                                                                                     | The run failed. This is the last event.           |
 
 - `tier` is `familiar`, `adjacent`, or `adventurous` for generated queries, and `null` when the user gave a `query`.
-- `description` is `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`.
-- `started` currently also carries `taste_version`. It is removed along with `taste_versions` ([database.md](database.md#moving-an-existing-database-to-this-schema)); `run_id` replaces it.
-- Analyses without a verdict produce no `scored` event.
+- `started` currently also carries `taste_version`. It is removed along with `taste_versions` ([database.md](database.md#moving-an-existing-database-to-this-schema)).
 - The artwork fields on `scored` are `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` ([artwork.md](artwork.md)).
 - Home maps these events to its status text ([home.md](home.md#events)).
 
@@ -81,26 +79,26 @@ Every event has a `type`. The shapes:
 
 Returned by `GET /api/songs`. A `scored` event carries the same fields except `analyzed_at` and `rating`.
 
-| Field                          | Type               | Notes                                                           |
-| ------------------------------ | ------------------ | --------------------------------------------------------------- |
-| `video_id`                     | string             | YouTube video id                                                |
-| `title`                        | string             |                                                                 |
-| `artist`                       | string             |                                                                 |
-| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                    |
-| `description`                  | string             | `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)` |
-| `analyzed_at`                  | string             |                                                                 |
-| `query`                        | string or null     | The search query that found the song. Null for old rows.        |
-| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                             |
-| `album_art_url`                | string or null     | _Planned._                                                      |
-| `album`                        | string or null     | _Planned._                                                      |
-| `musicbrainz_recording_id`     | string or null     | _Planned._                                                      |
-| `musicbrainz_release_group_id` | string or null     | _Planned._                                                      |
-| `recommended`                  | boolean            | Derived on read: the description starts with `Verdict: YES`     |
-| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.                |
+| Field                          | Type               | Notes                                                                    |
+| ------------------------------ | ------------------ | ------------------------------------------------------------------------ |
+| `video_id`                     | string             | YouTube video id                                                         |
+| `title`                        | string             |                                                                          |
+| `artist`                       | string             |                                                                          |
+| `url`                          | string             | `https://www.youtube.com/watch?v=<video_id>`                             |
+| `score`                        | number or null     | Match score from 0 to 1. Null for songs analyzed before scoring existed. |
+| `analyzed_at`                  | string             |                                                                          |
+| `query`                        | string or null     | The search query that found the song. Null for old rows.                 |
+| `thumbnail_url`                | string             | _Planned._ [artwork.md](artwork.md)                                      |
+| `album_art_url`                | string or null     | _Planned._                                                               |
+| `album`                        | string or null     | _Planned._                                                               |
+| `musicbrainz_recording_id`     | string or null     | _Planned._                                                               |
+| `musicbrainz_release_group_id` | string or null     | _Planned._                                                               |
+| `recommended`                  | boolean            | Whether the score met the run's threshold                                |
+| `rating`                       | `1`, `-1`, or null | _Planned._ The user's rating. Null when unrated.                         |
 
 ### `GET /api/songs`
 
-Status: changed. Today it returns every song as a bare list, ordered newest first, with `taste_version` and no artwork. The paginated response below replaces it, and the legacy `web/` page that reads it must be updated or retired when it ships.
+Status: changed. Today it returns every song as a bare list, ordered newest first, with `taste_version` and `description` and no artwork. The paginated response below replaces it, and the legacy `web/` page that reads it must be updated or retired when it ships.
 
 Query parameters:
 
@@ -122,7 +120,7 @@ Response `200`:
 			"title": "Everything In Its Right Place",
 			"artist": "Radiohead",
 			"url": "https://www.youtube.com/watch?v=abc123",
-			"description": "Verdict: YES (87% confidence)",
+			"score": 0.87,
 			"analyzed_at": "2026-10-10 14:03:22",
 			"query": "experimental electronic rock",
 			"thumbnail_url": "https://img.youtube.com/vi/abc123/hqdefault.jpg",
@@ -148,7 +146,7 @@ How the page uses these is in [songs-page.md](songs-page.md).
 
 ### `PUT /api/songs/{video_id}/feedback`
 
-Status: planned. See [learned-profile.md](learned-profile.md#rating-songs).
+Status: planned. See [scoring.md](scoring.md#rating-songs).
 
 Saves the user's rating of a song, replacing any earlier one. Saving again resets the rating's timestamp.
 
@@ -178,32 +176,26 @@ The user's taste. See [taste.md](taste.md).
 
 ### The `Taste` object
 
-| Field        | Type   | Notes                                                              |
-| ------------ | ------ | ------------------------------------------------------------------ |
-| `profile`    | object | The fields the user entered, below                                 |
-| `text`       | string | The text sent to the models, rendered from `profile` on every read |
-| `updated_at` | string | When the taste was last saved                                      |
+| Field        | Type   | Notes                              |
+| ------------ | ------ | ---------------------------------- |
+| `profile`    | object | The fields the user entered, below |
+| `updated_at` | string | When the taste was last saved      |
 
 The `profile` object:
 
-| Field              | Type            |
-| ------------------ | --------------- |
-| `liked_genres`     | list of strings |
-| `liked_artists`    | list of strings |
-| `disliked_genres`  | list of strings |
-| `disliked_artists` | list of strings |
-| `notes`            | string          |
+| Field             | Type            |
+| ----------------- | --------------- |
+| `liked_genres`    | list of strings |
+| `liked_artists`   | list of strings |
+| `disliked_genres` | list of strings |
 
 ```json
 {
 	"profile": {
 		"liked_genres": ["Electronic", "Indie rock"],
 		"liked_artists": ["Tame Impala", "Flume"],
-		"disliked_genres": ["Country"],
-		"disliked_artists": [],
-		"notes": "If songs have lyrics, they should be in English."
+		"disliked_genres": ["Country"]
 	},
-	"text": "I like these genres: Electronic, Indie rock. My favorite artists are Tame Impala, Flume. Never recommend these genres: Country. Notes: If songs have lyrics, they should be in English.",
 	"updated_at": "2026-10-10 12:00:00"
 }
 ```

@@ -14,8 +14,9 @@ Props are a `Song` as returned by `GET /api/songs` or a `scored` event:
 | `album_art_url`   | Preferred image                                    |
 | `thumbnail_url`   | Fallback image                                     |
 | `url`             | "Open on YouTube" link                             |
-| `description`     | Parsed for the confidence value                    |
+| `score`           | Match badge, as a percentage                       |
 | `recommended`     | Shows a badge on the Songs page when false         |
+| `rating`          | State of the like and dislike toggles              |
 
 All new fields are nullable. See [artwork.md](artwork.md).
 
@@ -23,7 +24,7 @@ All new fields are nullable. See [artwork.md](artwork.md).
 
 - Square image (1:1) on top, rounded corners, `object-cover`. A 16:9 YouTube thumbnail is center-cropped.
 - Below the image: title (one line, ellipsis, full title in a tooltip), artist (one line), and album (one line, muted) if present.
-- A confidence badge (for example "87%") in a corner of the image. The value comes from `Verdict: YES (N% confidence)` in `description`; if it cannot be parsed, no badge is shown. The parser is a small tested function, not inline regex in the component.
+- A match badge (for example "87%") in a corner of the image, from `score` rounded to a whole percent. It is not shown when `score` is null.
 - On the Songs page, songs with `recommended = false` show a muted "Not recommended" badge.
 - Fixed width in the carousel; fluid width in the grid.
 
@@ -32,6 +33,7 @@ All new fields are nullable. See [artwork.md](artwork.md).
 - A play button overlays the image on hover and focus. Clicking the image or the button plays the song in the [player](player.md).
 - The card whose `video_id` is the player's current song shows an animated equalizer indicator and a highlighted border. A pause icon replaces the play icon while it is playing.
 - A secondary "Open on YouTube" icon link (`url`, new tab, `rel="noopener noreferrer"`) in the card's corner.
+- Like and dislike toggle buttons ([scoring.md](scoring.md#rating-songs)) with `aria-pressed` and labels, shown on every card on Home and the Songs page. Clicking calls `rateSong`, or `clearRating` when the toggle is already active, and the card updates its `rating` right away.
 - The whole card is keyboard focusable through its play button.
 
 ## Artwork

@@ -2,7 +2,7 @@
 
 A SvelteKit single-page app (SPA) that replaces the legacy `web/` folder. It talks to the existing Python API in [api.py](../api/api.py) and adds no server-side logic of its own.
 
-Related specs: [home.md](home.md), [taste.md](taste.md), [learned-profile.md](learned-profile.md), [api.md](api.md), [song-card.md](song-card.md), [player.md](player.md), [songs-page.md](songs-page.md), [artwork.md](artwork.md), [database.md](database.md).
+Related specs: [home.md](home.md), [taste.md](taste.md), [scoring.md](scoring.md), [api.md](api.md), [song-card.md](song-card.md), [player.md](player.md), [songs-page.md](songs-page.md), [artwork.md](artwork.md), [database.md](database.md).
 
 ## Stack
 
@@ -112,7 +112,6 @@ Rules:
 ## Non-goals (for now)
 
 - Settings for `query` or `exploration`. Runs use the API defaults (`query` null, `exploration` 50).
-- Rating songs, until [learned-profile.md](learned-profile.md) is built. The `feedback` table has no writer yet.
 - Cancelling a run. The API has no cancel endpoint.
 - Packaging as a desktop app. The SPA runs in a browser against the local API; the desktop wrapper is a separate decision.
 - Authentication. The API is local only.

@@ -15,73 +15,74 @@ The schema is versioned by numbered SQL files in [api/migrations/](../api/migrat
 
 ## Moving an existing database to this schema
 
-The original schema had a `taste_versions` table and `songs.taste_version`. They are replaced by the single-row `taste` table and `runs`, in a new migration. An applied migration is never edited, so an existing `app.db` runs the new one.
+The original schema had a `taste_versions` table, `songs.taste_version`, and `songs.description` (a Music Flamingo verdict). They are replaced by the single-row `taste` table, `songs.score`, `songs.recommended`, and `song_embeddings`, in new migrations. An applied migration is never edited, so an existing `app.db` runs the new ones.
 
 - `taste_versions` is dropped with its history, including the seed taste, so the user enters their taste again. Songs are kept.
-- `songs.taste_version` is removed and `songs.run_id` is added.
-- SQLite cannot drop a column that is a foreign key, and `feedback`'s `ON DELETE RESTRICT` blocks dropping a referenced table that has rows. So the migration sets the `feedback` rows aside, drops `feedback`, rebuilds `songs` without the column, recreates `feedback` without its unused `note` column, and restores the ratings.
+- `songs.taste_version` and `songs.description` are removed. `recommended` is set from the old description (`Verdict: YES` becomes 1), and `score` stays NULL for existing songs, since the old confidence is not comparable to the new score.
+- SQLite cannot drop a column that is a foreign key, and `feedback`'s `ON DELETE RESTRICT` blocks dropping a referenced table that has rows. So the migration sets the `feedback` rows aside, drops `feedback`, rebuilds `songs` without the columns, recreates `feedback` without its unused `note` column, and restores the ratings.
+- Existing rated songs get embeddings from the backfill command in [scoring.md](scoring.md#existing-songs).
 
 ## `songs`
 
 One row per analyzed song. Songs are permanent, since `feedback` refers to them.
 
-| Column        | Type    | Constraints                         | Description                                                                                                                           |
-| ------------- | ------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `video_id`    | TEXT    | PRIMARY KEY                         | YouTube video id                                                                                                                      |
-| `title`       | TEXT    | NOT NULL                            | Song title                                                                                                                            |
-| `artist`      | TEXT    | NOT NULL                            | Artist name                                                                                                                           |
-| `url`         | TEXT    | NOT NULL                            | `https://www.youtube.com/watch?v=<video_id>`                                                                                          |
-| `description` | TEXT    | NOT NULL                            | Music Flamingo's verdict for the clip, `Verdict: YES (N% confidence)` or `Verdict: NO (N% confidence)`, from the YES/NO token logits  |
-| `analyzed_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the song was analyzed                                                                                                            |
-| `query`       | TEXT    |                                     | Search query that found the song. NULL for rows from before this column existed.                                                      |
-| `run_id`      | INTEGER | REFERENCES `runs(id)`               | The run that analyzed the song, which holds the taste and learned profile it used. NULL for songs analyzed before runs were recorded. |
+| Column        | Type    | Constraints                               | Description                                                                                                     |
+| ------------- | ------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `video_id`    | TEXT    | PRIMARY KEY                               | YouTube video id                                                                                                |
+| `title`       | TEXT    | NOT NULL                                  | Song title                                                                                                      |
+| `artist`      | TEXT    | NOT NULL                                  | Artist name                                                                                                     |
+| `url`         | TEXT    | NOT NULL                                  | `https://www.youtube.com/watch?v=<video_id>`                                                                    |
+| `score`       | REAL    |                                           | Match score from 0 to 1 ([scoring.md](scoring.md#score)). NULL for songs analyzed before scoring existed.       |
+| `recommended` | INTEGER | NOT NULL, CHECK (`recommended` IN (0, 1)) | `1` when `score` met the run's threshold. Stored, because the threshold depends on the run's exploration level. |
+| `analyzed_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP       | When the song was analyzed                                                                                      |
+| `query`       | TEXT    |                                           | Search query that found the song. NULL for rows from before this column existed.                                |
 
-- `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first and would fail on a rated song.
+- `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first and would fail on a rated song. It also writes the song's `song_embeddings` row in the same transaction.
 - `AppDb.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
 - How the display columns are filled is described in [artwork.md](artwork.md).
-- Songs whose analysis has no verdict are not stored. A song counts as recommended when its description starts with `Verdict: YES`; this is derived on read, not stored.
+- Every analyzed song is stored, recommended or not.
 
 `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` are planned in [artwork.md](artwork.md) and are not in the schema yet. They arrive in a later migration, which also runs `UPDATE songs SET thumbnail_url = 'https://img.youtube.com/vi/' || video_id || '/hqdefault.jpg'` so every existing row has a thumbnail.
 
 ## `taste`
 
-The user's current taste, in one row. `id` is always `1` and the row is overwritten on every save. There is no version history. What a run used is saved on `runs`.
+The user's current taste, in one row. `id` is always `1` and the row is overwritten on every save. There is no version history.
 
-| Column       | Type    | Constraints                         | Description                                                                                                                                   |
-| ------------ | ------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`         | INTEGER | PRIMARY KEY, CHECK (`id` = 1)       | Fixed, so the table cannot hold a second row                                                                                                  |
-| `profile`    | TEXT    | NOT NULL                            | JSON of the fields the user entered, `{liked_genres, liked_artists, disliked_genres, disliked_artists, notes}` ([taste.md](taste.md#storage)) |
-| `updated_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the taste was last saved                                                                                                                 |
+| Column       | Type    | Constraints                         | Description                                                                                                          |
+| ------------ | ------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `id`         | INTEGER | PRIMARY KEY, CHECK (`id` = 1)       | Fixed, so the table cannot hold a second row                                                                         |
+| `profile`    | TEXT    | NOT NULL                            | JSON of the fields the user entered, `{liked_genres, liked_artists, disliked_genres}` ([taste.md](taste.md#storage)) |
+| `updated_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the taste was last saved                                                                                        |
 
-- The text sent to the models is rendered from `profile` when a run starts and is never stored here, so it cannot drift from the fields.
+- The text for query generation is rendered from `profile` when a run starts and is never stored.
 - The table is empty on a fresh database and after the upgrade above. The user must save a taste before runs are allowed ([taste.md](taste.md#first-run)). `AppDb.get_current_taste` returns `None` until then.
 - Saving is an upsert (`INSERT ... ON CONFLICT (id) DO UPDATE`).
 
-## `runs`
+## `song_embeddings`
 
-One row per run. It saves the inputs the run actually sent to the models, so "what produced this song" is a lookup through `songs.run_id`, not a guess from dates or from the current taste. Written by `AppDb.add_run` at the start of a run. See [learned-profile.md](learned-profile.md#run-snapshot).
+One audio embedding per analyzed song, written with the song by `AppDb.add_song`. See [scoring.md](scoring.md#embeddings).
 
-| Column            | Type    | Constraints                         | Description                                                                                                |
-| ----------------- | ------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `id`              | INTEGER | PRIMARY KEY AUTOINCREMENT           | Stored on `songs.run_id`. Separate from the in-memory run id the API hands to clients.                     |
-| `started_at`      | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run started                                                                                       |
-| `query`           | TEXT    |                                     | The requested search query, or NULL when queries were generated                                            |
-| `count`           | INTEGER | NOT NULL                            | Songs requested                                                                                            |
-| `exploration`     | INTEGER | NOT NULL                            | Exploration level, 0-100                                                                                   |
-| `taste_text`      | TEXT    | NOT NULL                            | The taste text rendered from `taste.profile` and sent to the models                                        |
-| `learned_profile` | TEXT    |                                     | The learned profile text rendered on the fly from feedback and sent to the models. NULL when it was empty. |
+| Column       | Type | Constraints                               | Description                                                               |
+| ------------ | ---- | ----------------------------------------- | ------------------------------------------------------------------------- |
+| `video_id`   | TEXT | PRIMARY KEY, REFERENCES `songs(video_id)` | The embedded song                                                         |
+| `model`      | TEXT | NOT NULL                                  | Hugging Face id of the embedding model, `OpenMuQ/MuQ-MuLan-large`         |
+| `embedding`  | BLOB | NOT NULL                                  | Little-endian float32 values, L2-normalized, read with `numpy.frombuffer` |
+| `created_at` | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP       | When the embedding was computed                                           |
+
+- The scorer ignores rows whose `model` is not the current one.
+- Nothing else needs an index or a vector extension. All embeddings are loaded into memory when needed.
 
 ## `feedback`
 
-One rating per song. Written by the rating endpoints planned in [learned-profile.md](learned-profile.md#rating-songs); nothing writes to it yet.
+One rating per song. Written by the rating endpoints planned in [scoring.md](scoring.md#rating-songs); nothing writes to it yet.
 
-| Column       | Type    | Constraints                                                  | Description                                                                         |
-| ------------ | ------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `video_id`   | TEXT    | PRIMARY KEY, REFERENCES `songs(video_id)` ON DELETE RESTRICT | The rated song                                                                      |
-| `rating`     | INTEGER | NOT NULL, CHECK (`rating` IN (-1, 1))                        | `1` is a like, `-1` is a dislike                                                    |
-| `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          | When the rating was saved. Re-rating resets it. Used to break ties between artists. |
+| Column       | Type    | Constraints                                                  | Description                                                                               |
+| ------------ | ------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `video_id`   | TEXT    | PRIMARY KEY, REFERENCES `songs(video_id)` ON DELETE RESTRICT | The rated song                                                                            |
+| `rating`     | INTEGER | NOT NULL, CHECK (`rating` IN (-1, 1))                        | `1` is a like, `-1` is a dislike                                                          |
+| `created_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          | When the rating was saved. Re-rating resets it. Used to find the most recent liked songs. |
 
 ## Relationships
 
-- `songs.run_id` refers to `runs.id`, and `feedback.video_id` refers to `songs.video_id`. Both are enforced. `taste` and `runs` are otherwise independent, since a run stores a copy of the taste it used.
+- `feedback.video_id` and `song_embeddings.video_id` refer to `songs.video_id`. Both are enforced. `taste` is independent of the other tables.
 - Because every rated song has a `songs` row, searches skip `songs.video_id` alone (`AppDb.get_seen_ids`).

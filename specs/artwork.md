@@ -23,7 +23,7 @@ Added to `songs` in `app.db` by a new numbered migration in `api/migrations/`. A
 
 ## Lookup procedure
 
-Runs in the backend for each song, after the audio verdict and before the song is cached and its `scored` event is sent ([pipeline.py](../api/pipeline.py)). Only recommended songs are looked up, which saves requests for songs the user will rarely see. Songs that are not recommended get `thumbnail_url` only.
+Runs in the backend for each song, after scoring and before the song is cached and its `scored` event is sent ([pipeline.py](../api/pipeline.py)). Only recommended songs are looked up, which saves requests for songs the user will rarely see. Songs that are not recommended get `thumbnail_url` only.
 
 ### 1. Find the recording
 
@@ -65,7 +65,7 @@ Documentation: https://musicbrainz.org/doc/Cover_Art_Archive/API
 - The `analyzing` event gains `thumbnail_url` so the loading card can show an image ([home.md](home.md#recommendations-carousel)).
 - The `scored` event gains `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id`.
 - `AppDb.add_song` takes the five new values and stores them. `AppDb.list_songs` returns them.
-- Lookups run on the pipeline's consumer thread. Analysis of the next clip is already prefetched in parallel, so the added delay (about 1 to 2 seconds per recommended song) overlaps with other work.
+- Lookups run on the pipeline's consumer thread. Fetching of the next clip is already prefetched in parallel, so the added delay (about 1 to 2 seconds per recommended song) overlaps with other work.
 
 ## Frontend fallback
 
