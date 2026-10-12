@@ -19,9 +19,10 @@ def _find_songs(
     skip_ids: set[str],
     workdir: Path,
 ) -> Iterator[tuple[Song, str, str | None]]:
-    """Yield songs in expanding batches, up to the per-query search result limit."""
+    """Yield songs in expanding batches, up to the per-query search result limit. Each artist appears once."""
     max_count = MAX_SEARCH_RESULTS_PER_QUERY // OVERFETCH * len(searches)
     count = min(count, max_count)
+    seen_artists: set[str] = set()
     while count:
         remaining = count
         for i, (query, tier) in enumerate(searches):
@@ -31,6 +32,14 @@ def _find_songs(
             for song in fetch_songs(query, share, skip_ids, workdir):
                 # Later queries and batches must not return this song again.
                 skip_ids.add(song.video_id)
+
+                # Skip songs by artists already seen anywhere in this run.
+                # The lead artist, since collaborations are credited as "Lead, Guest".
+                artist_key = song.artist.split(",")[0].strip().casefold()
+                if artist_key in seen_artists:
+                    song.clip_path.unlink(missing_ok=True)
+                    continue
+                seen_artists.add(artist_key)
                 remaining -= 1
                 yield song, query, tier
         if count == max_count:

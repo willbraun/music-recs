@@ -101,16 +101,26 @@ def _generate_text(prompt: str) -> str:
 def generate_queries(taste: str, liked_artists: list[str], exploration: int, n: int) -> list[GeneratedQuery]:
     """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100).
 
-    `liked_artists` are the fallback queries when the model returns too few.
+    `liked_artists` are the fallback queries when the model returns too few. Queries are distinct,
+    so fewer than `n` come back when the model and the fallbacks run out of distinct ones.
     """
     tiers = allocate_tiers(n, exploration)
     text = _generate_text(_build_prompt(taste, tiers))
     unload_model()
 
-    generated = [GeneratedQuery(query, tier) for query, tier in zip(_parse(text), tiers)]
+    generated: list[GeneratedQuery] = []
+    used: set[str] = set()
+    for query, tier in zip(_parse(text), tiers):
+        if query.casefold() not in used:
+            used.add(query.casefold())
+            generated.append(GeneratedQuery(query, tier))
     # Pad with taste-derived queries when the model returned too few.
     fallback = _get_fallback_queries(taste, liked_artists)
     random.shuffle(fallback)
-    for i in range(len(generated), n):
-        generated.append(GeneratedQuery(fallback[i % len(fallback)], "familiar"))
+    for query in fallback:
+        if len(generated) >= n:
+            break
+        if query.casefold() not in used:
+            used.add(query.casefold())
+            generated.append(GeneratedQuery(query, "familiar"))
     return generated

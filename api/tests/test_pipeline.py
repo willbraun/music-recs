@@ -10,10 +10,10 @@ from huggingface_hub.errors import LocalEntryNotFoundError
 from taste_profile import TasteProfile
 
 
-def _song(video_id: str, tmp_path: Path) -> Song:
+def _song(video_id: str, tmp_path: Path, artist: str | None = None) -> Song:
     clip = tmp_path / f"{video_id}.wav"
     clip.touch()
-    return Song(video_id, f"Title {video_id}", "Artist", f"https://example.com/{video_id}", clip)
+    return Song(video_id, f"Title {video_id}", artist or f"Artist {video_id}", f"https://example.com/{video_id}", clip)
 
 
 def test_find_songs_distributes_requests_across_queries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -52,6 +52,22 @@ def test_find_songs_expands_batches_until_the_search_limit(monkeypatch: pytest.M
 
     assert list(pipeline._find_songs([("a", None)], 1, set(), tmp_path)) == []
     assert counts == [1, 2]
+
+
+def test_find_songs_skips_repeat_artists_and_deletes_their_clips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fetched = [
+        _song("a", tmp_path, "Flume"),
+        _song("b", tmp_path, " flume "),
+        _song("c", tmp_path, "Tame Impala"),
+        _song("d", tmp_path, "Flume, Kai"),
+    ]
+    monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(fetched))
+
+    found = list(pipeline._find_songs([("a", None)], 3, set(), tmp_path))
+
+    assert [s.video_id for s, _, _ in found] == ["a", "c"]
+    assert not fetched[1].clip_path.exists()
+    assert not fetched[3].clip_path.exists()
 
 
 def test_find_songs_records_yielded_ids_as_skipped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

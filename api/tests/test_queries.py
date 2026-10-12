@@ -72,18 +72,31 @@ def test_generate_queries_pairs_parsed_queries_with_tiers(monkeypatch: pytest.Mo
     assert stub_model == [True]
 
 
-def test_generate_queries_pads_with_fallback_when_model_returns_too_few(
-    monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]
-) -> None:
+@pytest.mark.usefixtures("stub_model")
+def test_generate_queries_pads_with_fallback_when_model_returns_too_few(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
     taste = "My favorite artists are Flume."
 
     result = generate_queries(taste, ["Flume"], 100, 3)
 
-    assert result == [GeneratedQuery("Flume", "familiar")] * 3
+    assert result == [GeneratedQuery("Flume", "familiar")]
 
 
-def test_generate_queries_ignores_extra_queries(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
+@pytest.mark.usefixtures("stub_model")
+def test_generate_queries_drops_duplicates_and_pads_with_unused_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["Flume", "flume", "Muse"]')
+
+    result = generate_queries("taste", ["FLUME", "Tame Impala"], 0, 3)
+
+    assert result == [
+        GeneratedQuery("Flume", "familiar"),
+        GeneratedQuery("Muse", "familiar"),
+        GeneratedQuery("Tame Impala", "familiar"),
+    ]
+
+
+@pytest.mark.usefixtures("stub_model")
+def test_generate_queries_ignores_extra_queries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B", "C"]')
 
     assert [g.query for g in generate_queries("taste", [], 0, 2)] == ["A", "B"]
