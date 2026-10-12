@@ -52,6 +52,7 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 - Use SvelteKit routing conventions rather than adding a separate router without an explicit need.
 - Keep frontend code compatible with the intended deployment model. Do not introduce server-side dependencies or browser-only assumptions without considering where the code executes.
 - Avoid duplicating business logic that already belongs in the Python backend.
+- If there are problems in the editor with Svelte files, feel free to restart the Svelte Language server to resolve them.
 
 ## Backend and Data Integration
 

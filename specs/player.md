@@ -30,7 +30,7 @@ Exposed functions: `playSong(song, queue)`, `togglePlayback()`, `playNext()`, `p
 ## Queue
 
 - Playing a card sets the queue to the list that card was shown in and the index to that card:
-  - Home: the recommendations in the carousel. New recommendations are appended with `appendToQueue`.
+  - Home: the recommendations in the grid. New recommendations are appended with `appendToQueue`.
   - Songs page: the songs on the current page, after filters are applied.
 - The queue is a snapshot. Changing filters or pages on the Songs page does not change the playing queue.
 - When a video ends, the next song plays automatically. At the end of the queue, playback stops and the bar stays on the last song with status `paused`.

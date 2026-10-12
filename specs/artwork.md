@@ -62,7 +62,7 @@ Documentation: https://musicbrainz.org/doc/Cover_Art_Archive/API
 
 ## Pipeline changes
 
-- The `analyzing` event gains `thumbnail_url` so the loading card can show an image ([home.md](home.md#recommendations-carousel)).
+- The `analyzing` event gains `thumbnail_url` so the loading card can show an image ([home.md](home.md#recommendations-grid)).
 - The `scored` event gains `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id`.
 - `AppDb.add_song` takes the five new values and stores them. `AppDb.list_songs` returns them.
 - Lookups run on the pipeline's consumer thread. Analysis of the next clip is already prefetched in parallel, so the added delay (about 1 to 2 seconds per recommended song) overlaps with other work.
