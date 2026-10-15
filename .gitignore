@@ -7,3 +7,6 @@ __pycache__/
 app.db
 app.db-wal
 app.db-shm
+
+# Scripts
+start.sh
