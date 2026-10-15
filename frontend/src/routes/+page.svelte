@@ -16,7 +16,7 @@
 
 	let isRunActive = $derived(run.phase === 'preparing' || run.phase === 'streaming')
 	let hasRecommendations = $derived(run.cards.some(card => card.kind === 'song'))
-	let isGridVisible = $derived(run.phase !== 'idle' && run.phase !== 'preparing' && run.cards.length > 0)
+	let isGridVisible = $derived(run.phase !== 'idle' && run.cards.length > 0)
 	let isEmpty = $derived(run.phase === 'done' && !hasRecommendations)
 
 	function getCardKey(card: RunCard): string {

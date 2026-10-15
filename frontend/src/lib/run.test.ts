@@ -167,7 +167,7 @@ describe('handleRunEvent', () => {
 		stream.emit({ type: 'done', analyzed: 4, recommended: 2, count: 3 })
 
 		expect(run.phase).toBe('done')
-		expect(run.status).toBe('Found 2 of 3')
+		expect(run.status).toBe('Done')
 		expect(stream.close).toHaveBeenCalled()
 	})
 

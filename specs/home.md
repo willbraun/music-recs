@@ -65,7 +65,7 @@ Event shapes come from `run` in [pipeline.py](../api/pipeline.py). The status te
 | `fetching`          | "Finding songs..."                      | None                                                    |
 | `analyzing`         | "Listening to {title} by {artist}..."   | Adds a loading card for the song at the end of the grid |
 | `scored`            | "Found {recommended} of {count}"        | See below                                               |
-| `done`              | "Found {recommended} of {count}"        | Phase becomes `done`                                    |
+| `done`              | "Done"                                  | Phase becomes `done`                                    |
 | `error`             | The event's `message`                   | Phase becomes `error`, toast shown                      |
 
 Handling `scored` (matched to its loading card by `video_id`):
@@ -102,7 +102,7 @@ States and motion:
 - New cards are appended at the end in the order songs finish analyzing. The page scroll position is never moved automatically. A "New" indicator is not needed.
 - The loading card is the last item. It uses the YouTube thumbnail from `thumbnail_url` (see [artwork.md](artwork.md)), dimmed, with a centered spinner, and shows the title and artist from the `analyzing` event.
 - Cards fill their grid cell, and appending never reorders or resizes existing cards.
-- The grid is hidden in `idle` and `preparing`, and shown from `streaming` onward (or from `done` for the empty state).
+- The grid is hidden in `idle` and whenever it has no cards. It appears as soon as the first loading card is added (even in `preparing`), and in `done` it shows the empty state when there are no recommendations.
 
 ## Playback from Home
 

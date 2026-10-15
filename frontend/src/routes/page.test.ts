@@ -86,12 +86,13 @@ describe('home page', () => {
 		expect(screen.getByText('Searching...')).toBeInTheDocument()
 	})
 
-	it('hides the recommendations while preparing, even with loading cards', () => {
+	it('shows the first loading card while preparing', () => {
 		run.phase = 'preparing'
 		run.cards = [{ kind: 'loading', video_id: 'a', title: 'A', artist: 'B' }]
 		render(Page)
 
-		expect(screen.queryByText('Recommended for you')).not.toBeInTheDocument()
+		expect(screen.getByText('Recommended for you')).toBeInTheDocument()
+		expect(screen.getByLabelText('Analyzing A')).toHaveAttribute('aria-busy', 'true')
 	})
 
 	it('shows recommendations and loading cards while streaming', () => {
