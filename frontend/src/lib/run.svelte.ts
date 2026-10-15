@@ -4,7 +4,13 @@ import { toast } from 'svelte-sonner'
 export type RunPhase = 'idle' | 'preparing' | 'streaming' | 'done' | 'error'
 
 export type RunCard =
-	| { kind: 'loading'; video_id: string; title: string; artist: string; thumbnail_url?: string }
+	| {
+			kind: 'loading'
+			video_id: string
+			title: string
+			artist: string
+			thumbnail_url?: string
+	  }
 	| { kind: 'song'; song: Song }
 
 export interface RunState {
@@ -19,7 +25,14 @@ export interface RunState {
 const RUN_ID_KEY = 'music-recs:run-id'
 
 function createInitialState(): RunState {
-	return { phase: 'idle', status: '', count: 0, recommended: 0, cards: [], error: null }
+	return {
+		phase: 'idle',
+		status: '',
+		count: 0,
+		recommended: 0,
+		cards: [],
+		error: null,
+	}
 }
 
 export const run: RunState = $state(createInitialState())
@@ -81,7 +94,9 @@ export function handleRunEvent(event: RunEvent) {
 			})
 			break
 		case 'scored': {
-			const index = run.cards.findIndex(card => card.kind === 'loading' && card.video_id === event.video_id)
+			const index = run.cards.findIndex(
+				(card) => card.kind === 'loading' && card.video_id === event.video_id
+			)
 			if (event.recommended) {
 				const card: RunCard = { kind: 'song', song: event }
 				if (index === -1) run.cards.push(card)
@@ -113,7 +128,7 @@ function listenToRun(id: string, isResume: boolean) {
 	const stream = openRunEvents(id)
 	source = stream
 
-	stream.onmessage = message => {
+	stream.onmessage = (message) => {
 		receivedEvent = true
 		handleRunEvent(JSON.parse(message.data))
 	}
@@ -132,7 +147,10 @@ function listenToRun(id: string, isResume: boolean) {
 export async function startNewRun(count: number) {
 	if (run.phase === 'preparing' || run.phase === 'streaming') return
 	closeRunStream()
-	Object.assign(run, createInitialState(), { phase: 'preparing', status: 'Waiting for the model...' })
+	Object.assign(run, createInitialState(), {
+		phase: 'preparing',
+		status: 'Waiting for the model...',
+	})
 	try {
 		const { id } = await startRun(count)
 		saveRunId(id)
@@ -145,6 +163,9 @@ export async function startNewRun(count: number) {
 export function resumeRun() {
 	const id = sessionStorage.getItem(RUN_ID_KEY)
 	if (!id || source) return
-	Object.assign(run, createInitialState(), { phase: 'preparing', status: 'Waiting for the model...' })
+	Object.assign(run, createInitialState(), {
+		phase: 'preparing',
+		status: 'Waiting for the model...',
+	})
 	listenToRun(id, true)
 }

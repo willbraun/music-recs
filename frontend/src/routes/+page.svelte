@@ -14,8 +14,12 @@
 
 	let count = $state(3)
 
-	let isRunActive = $derived(run.phase === 'preparing' || run.phase === 'streaming')
-	let hasRecommendations = $derived(run.cards.some(card => card.kind === 'song'))
+	let isRunActive = $derived(
+		run.phase === 'preparing' || run.phase === 'streaming'
+	)
+	let hasRecommendations = $derived(
+		run.cards.some((card) => card.kind === 'song')
+	)
 	let isGridVisible = $derived(run.phase !== 'idle' && run.cards.length > 0)
 	let isEmpty = $derived(run.phase === 'done' && !hasRecommendations)
 
@@ -36,11 +40,15 @@
 <main class="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-12">
 	<section class="flex flex-col items-center gap-6 text-center">
 		<div class="flex flex-col gap-2">
-			<h1 class="text-3xl font-semibold tracking-tight">Discover something new</h1>
-			<p class="text-muted-foreground">Based on your taste, I'll find music you might like.</p>
+			<h1 class="text-3xl font-semibold tracking-tight">
+				Discover something new
+			</h1>
+			<p class="text-muted-foreground">
+				Based on your taste, I'll find music you might like.
+			</p>
 		</div>
 
-		<form class="flex items-center gap-2 relative" onsubmit={submitRun}>
+		<form class="relative flex items-center gap-2" onsubmit={submitRun}>
 			<Button type="submit" size="lg" disabled={isRunActive}>
 				<SparklesIcon />
 				{isRunActive ? 'Finding music...' : 'Find new music'}
@@ -55,7 +63,11 @@
 					<SettingsIcon />
 				</Popover.Trigger>
 				<Popover.Content class="w-auto" align="start">
-					<div class="flex items-center gap-4" role="group" aria-label="Number of songs">
+					<div
+						class="flex items-center gap-4"
+						role="group"
+						aria-label="Number of songs"
+					>
 						<span class="text-sm font-medium">Songs:</span>
 						<div class="flex items-center gap-3">
 							<Button
@@ -68,8 +80,9 @@
 							>
 								<MinusIcon />
 							</Button>
-							<output class="w-8 text-center text-lg font-semibold tabular-nums" aria-label="Songs to find"
-								>{count}</output
+							<output
+								class="w-8 text-center text-lg font-semibold tabular-nums"
+								aria-label="Songs to find">{count}</output
 							>
 							<Button
 								type="button"
@@ -87,14 +100,16 @@
 			</Popover.Root>
 		</form>
 
-		<p class="text-muted-foreground min-h-6" aria-live="polite">
+		<p class="min-h-6 text-muted-foreground" aria-live="polite">
 			{#if run.phase !== 'idle'}{run.status}{/if}
 		</p>
 	</section>
 
 	{#if isGridVisible}
 		<section class="flex flex-col gap-3" aria-labelledby="recommended-heading">
-			<h2 id="recommended-heading" class="text-lg font-semibold">Recommended for you</h2>
+			<h2 id="recommended-heading" class="text-lg font-semibold">
+				Recommended for you
+			</h2>
 			<ul class="grid grid-cols-4 gap-4" aria-labelledby="recommended-heading">
 				{#each run.cards as card (getCardKey(card))}
 					<li>
@@ -108,6 +123,8 @@
 			</ul>
 		</section>
 	{:else if isEmpty}
-		<p class="text-muted-foreground text-center">No new recommendations this time. Try again for a fresh batch.</p>
+		<p class="text-center text-muted-foreground">
+			No new recommendations this time. Try again for a fresh batch.
+		</p>
 	{/if}
 </main>

@@ -17,7 +17,12 @@ export interface Song {
 export type Tier = 'familiar' | 'adjacent' | 'adventurous'
 
 export type RunEvent =
-	| { type: 'started'; query: string | null; count: number; exploration: number }
+	| {
+			type: 'started'
+			query: string | null
+			count: number
+			exploration: number
+	  }
 	| { type: 'downloading_model'; model: string }
 	| { type: 'queries'; queries: { query: string; tier: Tier | null }[] }
 	| { type: 'fetching' }
@@ -63,7 +68,8 @@ export async function startRun(count: number): Promise<{ id: string }> {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ count }),
 	})
-	if (!response.ok) throw new ApiError(await readErrorMessage(response), response.status)
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
 	return response.json()
 }
 

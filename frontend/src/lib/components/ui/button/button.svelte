@@ -1,6 +1,9 @@
 <script lang="ts" module>
 	import { cn, type WithElementRef } from '#lib/utils.js'
-	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements'
+	import type {
+		HTMLAnchorAttributes,
+		HTMLButtonAttributes,
+	} from 'svelte/elements'
 	import { tv, type VariantProps } from 'tailwind-variants'
 
 	export const buttonVariants = tv({
@@ -27,7 +30,8 @@
 				icon: 'size-9',
 				'icon-xs':
 					"size-6 rounded-[min(var(--radius-md),8px)] in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
-				'icon-sm': 'size-8 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-md',
+				'icon-sm':
+					'size-8 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-md',
 				'icon-lg': 'size-10',
 			},
 		},

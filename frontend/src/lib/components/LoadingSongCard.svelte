@@ -5,11 +5,16 @@
 </script>
 
 <article class="w-full" aria-busy="true" aria-label="Analyzing {title}">
-	<div class="bg-muted relative flex aspect-square items-center justify-center rounded-lg">
-		<LoaderCircleIcon class="text-muted-foreground size-8 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+	<div
+		class="relative flex aspect-square items-center justify-center rounded-lg bg-muted"
+	>
+		<LoaderCircleIcon
+			class="size-8 animate-spin text-muted-foreground motion-reduce:animate-none"
+			aria-hidden="true"
+		/>
 	</div>
 	<div class="mt-2 min-w-0 opacity-60">
-		<p class="truncate text-sm font-medium" title={title}>{title}</p>
-		<p class="text-muted-foreground truncate text-sm">{artist}</p>
+		<p class="truncate text-sm font-medium" {title}>{title}</p>
+		<p class="truncate text-sm text-muted-foreground">{artist}</p>
 	</div>
 </article>

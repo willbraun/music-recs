@@ -7,10 +7,19 @@ const { startRunMock, openRunEventsMock, toastErrorMock } = vi.hoisted(() => ({
 	toastErrorMock: vi.fn(),
 }))
 
-vi.mock('#lib/api.js', () => ({ startRun: startRunMock, openRunEvents: openRunEventsMock }))
+vi.mock('#lib/api.js', () => ({
+	startRun: startRunMock,
+	openRunEvents: openRunEventsMock,
+}))
 vi.mock('svelte-sonner', () => ({ toast: { error: toastErrorMock } }))
 
-import { handleRunEvent, resetRun, resumeRun, run, startNewRun } from './run.svelte'
+import {
+	handleRunEvent,
+	resetRun,
+	resumeRun,
+	run,
+	startNewRun,
+} from './run.svelte'
 
 class FakeEventSource {
 	static CLOSED = 2
@@ -26,7 +35,10 @@ class FakeEventSource {
 	}
 }
 
-function makeSong(video_id: string, recommended = true): Song & { type: 'scored'; index: number; tier: null } {
+function makeSong(
+	video_id: string,
+	recommended = true
+): Song & { type: 'scored'; index: number; tier: null } {
 	return {
 		type: 'scored',
 		index: 1,
@@ -111,8 +123,14 @@ describe('startNewRun', () => {
 
 describe('handleRunEvent', () => {
 	it.each([
-		[{ type: 'started', query: null, count: 3, exploration: 50 }, 'Reading your taste...'],
-		[{ type: 'downloading_model', model: 'm' }, 'Downloading model (first run only)...'],
+		[
+			{ type: 'started', query: null, count: 3, exploration: 50 },
+			'Reading your taste...',
+		],
+		[
+			{ type: 'downloading_model', model: 'm' },
+			'Downloading model (first run only)...',
+		],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
 		[{ type: 'fetching' }, 'Finding songs...'],
 	] as [RunEvent, string][])('sets the status for %o', (event, status) => {
@@ -136,7 +154,10 @@ describe('handleRunEvent', () => {
 
 		expect(run.phase).toBe('streaming')
 		expect(run.cards).toHaveLength(1)
-		expect(run.cards[0]).toMatchObject({ kind: 'song', song: { video_id: 'a' } })
+		expect(run.cards[0]).toMatchObject({
+			kind: 'song',
+			song: { video_id: 'a' },
+		})
 		expect(run.status).toBe('Found 1 of 3')
 	})
 
@@ -155,11 +176,11 @@ describe('handleRunEvent', () => {
 		handleRunEvent(makeSong('b'))
 		handleRunEvent(makeAnalyzing('c'))
 
-		expect(run.cards.map(card => (card.kind === 'song' ? card.song.video_id : `loading:${card.video_id}`))).toEqual([
-			'a',
-			'b',
-			'loading:c',
-		])
+		expect(
+			run.cards.map((card) =>
+				card.kind === 'song' ? card.song.video_id : `loading:${card.video_id}`
+			)
+		).toEqual(['a', 'b', 'loading:c'])
 	})
 
 	it('finishes on done and closes the stream', async () => {
