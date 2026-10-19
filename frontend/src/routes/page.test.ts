@@ -49,7 +49,21 @@ describe('home page', () => {
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(3)
+		expect(startNewRunMock).toHaveBeenCalledWith(3, 50)
+	})
+
+	it('starts a run with the chosen exploration', async () => {
+		render(Page)
+		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('50%')
+		screen.getByRole('slider', { hidden: true }).focus()
+		await userEvent.keyboard('{ArrowRight}')
+		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('51%')
+		await userEvent.click(
+			screen.getByRole('button', { name: 'Find new music' })
+		)
+
+		expect(startNewRunMock).toHaveBeenCalledWith(3, 51)
 	})
 
 	it('hides the stepper until settings is opened', () => {
@@ -69,7 +83,7 @@ describe('home page', () => {
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(4)
+		expect(startNewRunMock).toHaveBeenCalledWith(4, 50)
 	})
 
 	it('stops the stepper at 1', async () => {

@@ -31,6 +31,7 @@ Home is only shown when a taste exists. Without one the layout redirects to `/ta
   - Integer, min 1, max 50, default 3. These match `RunRequest.count` in [api.py](../api/api.py).
   - Out-of-range or empty input disables the button and shows the allowed range in the field's helper text. The value is never silently clamped on submit.
 - While a run is active, the button is disabled and shows "Finding music..." and the input is disabled.
+- The settings popover also has an "Exploration" shadcn-svelte `Slider` from 0 to 100 (default 50), labelled "Familiar" at the left end and "Adventurous" at the right, with the current value shown as a percentage. It is sent as `exploration` in `POST /api/runs` and is disabled while a run is active.
 - Pressing Enter in the input starts a run.
 
 ## Run lifecycle

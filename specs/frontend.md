@@ -109,7 +109,7 @@ Rules:
 
 ## Non-goals (for now)
 
-- Settings for `query` or `exploration`. Runs use the API defaults (`query` null, `exploration` 50).
+- Settings for `query`. Runs use the API default (`query` null). `exploration` is set from the Home settings popover.
 - Rating songs.
 - Cancelling a run. The API has no cancel endpoint.
 - Packaging as a desktop app. The SPA runs in a browser against the local API; the desktop wrapper is a separate decision.

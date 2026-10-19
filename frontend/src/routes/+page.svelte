@@ -3,6 +3,7 @@
 	import SongCard from '#lib/components/SongCard.svelte'
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import * as Popover from '#lib/components/ui/popover/index.js'
+	import { Slider } from '#lib/components/ui/slider/index.js'
 	import { run, startNewRun, type RunCard } from '#lib/run.svelte.js'
 	import MinusIcon from '@lucide/svelte/icons/minus'
 	import PlusIcon from '@lucide/svelte/icons/plus'
@@ -13,6 +14,7 @@
 	const MAX_COUNT = 50
 
 	let count = $state(3)
+	let exploration = $state(50)
 
 	let isRunActive = $derived(
 		run.phase === 'preparing' || run.phase === 'streaming'
@@ -29,7 +31,7 @@
 
 	function submitRun(event: SubmitEvent) {
 		event.preventDefault()
-		if (!isRunActive) void startNewRun(count)
+		if (!isRunActive) void startNewRun(count, exploration)
 	}
 </script>
 
@@ -62,9 +64,9 @@
 				>
 					<SettingsIcon />
 				</Popover.Trigger>
-				<Popover.Content class="w-auto" align="start">
+				<Popover.Content class="flex w-72 flex-col gap-5" align="start">
 					<div
-						class="flex items-center gap-4"
+						class="flex items-center justify-between gap-4"
 						role="group"
 						aria-label="Number of songs"
 					>
@@ -94,6 +96,30 @@
 							>
 								<PlusIcon />
 							</Button>
+						</div>
+					</div>
+
+					<div class="flex flex-col gap-3">
+						<div class="flex items-center justify-between text-sm">
+							<span id="exploration-label" class="font-medium">Exploration</span
+							>
+							<output
+								class="text-muted-foreground tabular-nums"
+								aria-label="Exploration level">{exploration}%</output
+							>
+						</div>
+						<Slider
+							type="single"
+							min={0}
+							max={100}
+							step={1}
+							bind:value={exploration}
+							disabled={isRunActive}
+							aria-labelledby="exploration-label"
+						/>
+						<div class="flex justify-between text-xs text-muted-foreground">
+							<span>Familiar</span>
+							<span>Adventurous</span>
 						</div>
 					</div>
 				</Popover.Content>

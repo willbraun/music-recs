@@ -81,22 +81,22 @@ beforeEach(() => {
 
 describe('startNewRun', () => {
 	it('enters preparing, requests the run, and opens the stream', async () => {
-		const pending = startNewRun(5)
+		const pending = startNewRun(5, 30)
 		expect(run.phase).toBe('preparing')
 		expect(run.status).toBe('Waiting for the model...')
 		await pending
 
-		expect(startRunMock).toHaveBeenCalledWith(5)
+		expect(startRunMock).toHaveBeenCalledWith(5, 30)
 		expect(openRunEventsMock).toHaveBeenCalledWith('run-1')
 		expect(sessionStorage.getItem('music-recs:run-id')).toBe('run-1')
 	})
 
 	it('clears the previous results', async () => {
-		await startNewRun(3)
+		await startNewRun(3, 50)
 		handleRunEvent(makeSong('a'))
 		stream.emit({ type: 'done', analyzed: 1, recommended: 1, count: 3 })
 
-		await startNewRun(3)
+		await startNewRun(3, 50)
 
 		expect(run.cards).toEqual([])
 		expect(run.phase).toBe('preparing')
@@ -105,7 +105,7 @@ describe('startNewRun', () => {
 	it('fails with the server message and a toast when the request is rejected', async () => {
 		startRunMock.mockRejectedValue(new Error('Set your taste first'))
 
-		await startNewRun(3)
+		await startNewRun(3, 50)
 
 		expect(run.phase).toBe('error')
 		expect(run.error).toBe('Set your taste first')
@@ -114,8 +114,8 @@ describe('startNewRun', () => {
 	})
 
 	it('ignores a start while a run is active', async () => {
-		await startNewRun(3)
-		await startNewRun(3)
+		await startNewRun(3, 50)
+		await startNewRun(3, 50)
 
 		expect(startRunMock).toHaveBeenCalledTimes(1)
 	})
@@ -184,7 +184,7 @@ describe('handleRunEvent', () => {
 	})
 
 	it('finishes on done and closes the stream', async () => {
-		await startNewRun(3)
+		await startNewRun(3, 50)
 		stream.emit({ type: 'done', analyzed: 4, recommended: 2, count: 3 })
 
 		expect(run.phase).toBe('done')
@@ -193,7 +193,7 @@ describe('handleRunEvent', () => {
 	})
 
 	it('fails on an error event with a toast and closes the stream', async () => {
-		await startNewRun(3)
+		await startNewRun(3, 50)
 		stream.emit({ type: 'error', message: 'Model crashed' })
 
 		expect(run.phase).toBe('error')
@@ -205,7 +205,7 @@ describe('handleRunEvent', () => {
 
 describe('stream failures', () => {
 	it('lets the browser reconnect while the stream is connecting', async () => {
-		await startNewRun(3)
+		await startNewRun(3, 50)
 		stream.readyState = 0
 		stream.onerror?.()
 
@@ -213,7 +213,7 @@ describe('stream failures', () => {
 	})
 
 	it('reports a lost connection when the stream is closed', async () => {
-		await startNewRun(3)
+		await startNewRun(3, 50)
 		stream.readyState = FakeEventSource.CLOSED
 		stream.onerror?.()
 

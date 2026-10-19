@@ -144,7 +144,7 @@ function listenToRun(id: string, isResume: boolean) {
 	}
 }
 
-export async function startNewRun(count: number) {
+export async function startNewRun(count: number, exploration: number) {
 	if (run.phase === 'preparing' || run.phase === 'streaming') return
 	closeRunStream()
 	Object.assign(run, createInitialState(), {
@@ -152,7 +152,7 @@ export async function startNewRun(count: number) {
 		status: 'Waiting for the model...',
 	})
 	try {
-		const { id } = await startRun(count)
+		const { id } = await startRun(count, exploration)
 		saveRunId(id)
 		listenToRun(id, false)
 	} catch (error) {

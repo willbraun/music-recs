@@ -62,11 +62,14 @@ async function readErrorMessage(response: Response): Promise<string> {
 	return `Request failed (${response.status})`
 }
 
-export async function startRun(count: number): Promise<{ id: string }> {
+export async function startRun(
+	count: number,
+	exploration: number
+): Promise<{ id: string }> {
 	const response = await fetch('/api/runs', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ count }),
+		body: JSON.stringify({ count, exploration }),
 	})
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
