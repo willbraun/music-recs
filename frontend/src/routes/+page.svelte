@@ -4,8 +4,15 @@
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import * as Popover from '#lib/components/ui/popover/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
-	import { run, startNewRun, type RunCard } from '#lib/run.svelte.js'
+	import { playSong } from '#lib/player.svelte.js'
+	import {
+		run,
+		RUN_QUEUE_ORIGIN,
+		startNewRun,
+		type RunCard,
+	} from '#lib/run.svelte.js'
 	import MinusIcon from '@lucide/svelte/icons/minus'
+	import PlayIcon from '@lucide/svelte/icons/play'
 	import PlusIcon from '@lucide/svelte/icons/plus'
 	import SettingsIcon from '@lucide/svelte/icons/settings'
 	import SparklesIcon from '@lucide/svelte/icons/sparkles'
@@ -24,9 +31,18 @@
 	)
 	let isGridVisible = $derived(run.phase !== 'idle' && run.cards.length > 0)
 	let isEmpty = $derived(run.phase === 'done' && !hasRecommendations)
+	let songs = $derived(
+		run.cards.flatMap((card) => (card.kind === 'song' ? [card.song] : []))
+	)
+
+	let isPlayVisible = $derived(songs.length > 0)
 
 	function getCardKey(card: RunCard): string {
 		return card.kind === 'loading' ? card.video_id : card.song.video_id
+	}
+
+	function playAll() {
+		playSong(songs[0], songs, RUN_QUEUE_ORIGIN)
 	}
 
 	function submitRun(event: SubmitEvent) {
@@ -133,16 +149,28 @@
 
 	{#if isGridVisible}
 		<section class="flex flex-col gap-3" aria-labelledby="recommended-heading">
-			<h2 id="recommended-heading" class="text-lg font-semibold">
-				Recommended for you
-			</h2>
+			<div class="flex items-center justify-between">
+				<h2 id="recommended-heading" class="text-2xl font-semibold">
+					Recommended for you
+				</h2>
+				{#if isPlayVisible}
+					<Button type="button" variant="outline" onclick={playAll}>
+						<PlayIcon />
+						Play All
+					</Button>
+				{/if}
+			</div>
 			<ul class="grid grid-cols-4 gap-4" aria-labelledby="recommended-heading">
 				{#each run.cards as card (getCardKey(card))}
 					<li>
 						{#if card.kind === 'loading'}
 							<LoadingSongCard title={card.title} artist={card.artist} />
 						{:else}
-							<SongCard song={card.song} />
+							<SongCard
+								song={card.song}
+								queue={songs}
+								origin={RUN_QUEUE_ORIGIN}
+							/>
 						{/if}
 					</li>
 				{/each}

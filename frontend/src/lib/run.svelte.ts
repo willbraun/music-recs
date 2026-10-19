@@ -1,5 +1,8 @@
 import { openRunEvents, startRun, type RunEvent, type Song } from '#lib/api.js'
+import { appendToQueue } from '#lib/player.svelte.js'
 import { toast } from 'svelte-sonner'
+
+export const RUN_QUEUE_ORIGIN = 'run'
 
 export type RunPhase = 'idle' | 'preparing' | 'streaming' | 'done' | 'error'
 
@@ -102,6 +105,7 @@ export function handleRunEvent(event: RunEvent) {
 				if (index === -1) run.cards.push(card)
 				else run.cards[index] = card
 				run.recommended += 1
+				appendToQueue([event], RUN_QUEUE_ORIGIN)
 				if (run.phase === 'preparing') run.phase = 'streaming'
 			} else if (index !== -1) {
 				run.cards.splice(index, 1)
