@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '#lib/assets/favicon.svg'
+	import Header from '#lib/components/Header.svelte'
 	import Player from '#lib/components/Player.svelte'
 	import { Toaster } from '#lib/components/ui/sonner/index.js'
 	import { player } from '#lib/player.svelte.js'
@@ -21,6 +22,8 @@
 
 <ModeWatcher defaultMode="dark" />
 <Toaster />
+
+<Header />
 
 <div class:pb-18={player.current}>
 	{@render children()}

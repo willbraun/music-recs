@@ -77,6 +77,13 @@ export async function startRun(
 	return response.json()
 }
 
+export async function listSongs(): Promise<Song[]> {
+	const response = await fetch('/api/songs')
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
 export function openRunEvents(id: string): EventSource {
 	return new EventSource(`/api/runs/${encodeURIComponent(id)}/events`)
 }
