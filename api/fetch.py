@@ -117,8 +117,9 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
                 ydl.process_ie_result(info, download=True)
             break
         except DownloadError as e:
+            # A sign-in requirement belongs to the video, so retrying cannot help.
             # ffmpeg fails sporadically (HTTP errors on the stream URL); a fresh extraction usually fixes it.
-            if attempt == DOWNLOAD_ATTEMPTS - 1:
+            if attempt == DOWNLOAD_ATTEMPTS - 1 or "Please sign in" in str(e):
                 print(f"Skipping {video_id}: {e}")
                 return None
     return Song(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav")

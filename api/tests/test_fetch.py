@@ -58,10 +58,11 @@ def test_is_studio_rejects(overrides: dict) -> None:
 
 
 class _FakeYoutubeDL:
-    def __init__(self, opts: dict, info: dict | None = None, fail_times: int = 0) -> None:
+    def __init__(self, opts: dict, info: dict | None = None, fail_times: int = 0, error: str = "boom") -> None:
         self.opts = opts
         self.info = info
         self.fail_times = fail_times
+        self.error = error
         self.downloaded = False
 
     def __enter__(self):
@@ -73,7 +74,7 @@ class _FakeYoutubeDL:
     def extract_info(self, url: str, download: bool):
         if self.fail_times:
             self.fail_times -= 1
-            raise DownloadError("boom")
+            raise DownloadError(self.error)
         return self.info
 
     def process_ie_result(self, info: dict, download: bool) -> None:
@@ -136,6 +137,14 @@ def test_download_song_gives_up_after_all_attempts(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
 
     assert fetch._download_song("abc", tmp_path) is None
+
+
+def test_download_song_does_not_retry_when_sign_in_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ydl = _FakeYoutubeDL({}, _info(), fail_times=2, error="ERROR: [youtube] abc: Please sign in.")
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    assert fetch._download_song("abc", tmp_path) is None
+    assert ydl.fail_times == 1
 
 
 def _stub_fetching(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ids: list[str], rejected: set[str] = frozenset()) -> None:
