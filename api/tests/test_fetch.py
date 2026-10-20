@@ -3,7 +3,7 @@ from pathlib import Path
 import fetch
 import pytest
 from fetch import Song, fetch_songs
-from yt_dlp.utils import DownloadError
+from yt_dlp.utils import DownloadError, UnavailableVideoError
 
 
 def _info(**overrides) -> dict:
@@ -58,10 +58,13 @@ def test_is_studio_rejects(overrides: dict) -> None:
 
 
 class _FakeYoutubeDL:
-    def __init__(self, opts: dict, info: dict | None = None, fail_times: int = 0, error: str = "boom") -> None:
+    def __init__(
+        self, opts: dict, info: dict | None = None, fail_times: int = 0, error: str = "boom", error_type: type[Exception] = DownloadError
+    ) -> None:
         self.opts = opts
         self.info = info
         self.fail_times = fail_times
+        self.error_type = error_type
         self.error = error
         self.downloaded = False
 
@@ -74,7 +77,7 @@ class _FakeYoutubeDL:
     def extract_info(self, url: str, download: bool):
         if self.fail_times:
             self.fail_times -= 1
-            raise DownloadError(self.error)
+            raise self.error_type(self.error)
         return self.info
 
     def process_ie_result(self, info: dict, download: bool) -> None:
@@ -139,6 +142,13 @@ def test_download_song_gives_up_after_all_attempts(monkeypatch: pytest.MonkeyPat
     assert fetch._download_song("abc", tmp_path) is None
 
 
+def test_download_song_skips_when_the_file_cannot_be_written(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ydl = _FakeYoutubeDL({}, _info(), fail_times=fetch.DOWNLOAD_ATTEMPTS, error="[Errno 2] No such file", error_type=UnavailableVideoError)
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    assert fetch._download_song("abc", tmp_path) is None
+
+
 def test_download_song_does_not_retry_when_sign_in_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     ydl = _FakeYoutubeDL({}, _info(), fail_times=2, error="ERROR: [youtube] abc: Please sign in.")
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
@@ -173,6 +183,14 @@ def test_fetch_songs_skips_known_and_rejected_ids(monkeypatch: pytest.MonkeyPatc
     assert [s.video_id for s in songs] == ["b", "d"]
     # Every considered id is recorded so later searches don't repeat it.
     assert {"a", "b", "c", "d"} <= skip_ids
+
+
+def test_fetch_songs_downloads_a_repeated_id_once(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _stub_fetching(monkeypatch, tmp_path, ["a", "a", "b"])
+
+    songs = list(fetch_songs("q", 3, set(), tmp_path))
+
+    assert [s.video_id for s in songs] == ["a", "b"]
 
 
 def test_fetch_songs_returns_nothing_when_no_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

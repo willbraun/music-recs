@@ -13,6 +13,7 @@ export type RunCard =
 			title: string
 			artist: string
 			thumbnail_url?: string
+			album_art_url?: string | null
 	  }
 	| { kind: 'song'; song: Song }
 
@@ -94,6 +95,7 @@ export function handleRunEvent(event: RunEvent) {
 				title: event.title,
 				artist: event.artist,
 				thumbnail_url: event.thumbnail_url,
+				album_art_url: event.album_art_url,
 			})
 			break
 		case 'scored': {

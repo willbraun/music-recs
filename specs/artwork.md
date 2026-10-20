@@ -23,20 +23,22 @@ Added to `songs` in `app.db` by a new numbered migration in `api/migrations/`. A
 
 ## Lookup procedure
 
-Runs in the backend for each song, after the audio verdict and before the song is cached and its `scored` event is sent ([pipeline.py](../api/pipeline.py)). Only recommended songs are looked up, which saves requests for songs the user will rarely see. Songs that are not recommended get `thumbnail_url` only.
+Runs in the backend for each song, after the clip is fetched and before the audio verdict ([pipeline.py](../api/pipeline.py)), so the loading card can show the same art as the final card. Every analyzed song is looked up, whether or not it ends up recommended.
 
 ### 1. Find the recording
 
 ```
-GET https://musicbrainz.org/ws/2/recording/?query=artist:"Radiohead" AND recording:"Everything In Its Right Place"&fmt=json&limit=5
+GET https://musicbrainz.org/ws/2/recording/?query=artist:"Radiohead" AND recording:"Everything In Its Right Place" AND status:official&fmt=json&limit=25
 ```
 
 - Use the song's `artist` and `title`. Escape Lucene special characters and double quotes in both values.
-- Pick the first result that meets all of:
+- `status:official` keeps bootleg live recordings from crowding out the studio release in the results.
+- Consider every result that meets all of:
   - `score >= 90`.
   - Its title equals the song title after normalizing case, punctuation, and surrounding whitespace.
   - It has at least one release with a release group.
-- Among that recording's releases, choose the release group in this order: primary type Album, then EP, then Single. Skip release groups with a secondary type of Compilation, Live, Soundtrack, or Remix unless nothing else is available.
+- For each, choose the release group in this order: primary type Album, then EP, then Single. Skip release groups with a secondary type of Compilation, Live, Soundtrack, or Remix unless nothing else is available.
+- Of those candidates, use the one with the best release group by the same order. Ties go to the earlier search result.
 - Store the recording `id`, the chosen release group `id`, and the release group `title` as `album`.
 - No result that meets the rules means no match. Store NULLs for the four columns.
 
@@ -58,14 +60,14 @@ Documentation: https://musicbrainz.org/doc/Cover_Art_Archive/API
 - `User-Agent: music-recs/<version> (<contact>)`. The contact value is a constant in the code that the user must set. It is not read from user input.
 - At most 1 MusicBrainz request per second, enforced by a shared rate limiter in the lookup module. Cover Art Archive requests are not limited this way, but run sequentially.
 - Timeout of 5 seconds per request.
-- Any network error, timeout, 5xx, or 503 (rate limited) is treated as no match for that song. The failure is logged. It never fails the run and never blocks the song from being cached or sent.
+- Any network error, timeout, or 5xx is treated as no match for that song. A 503 (MusicBrainz is busy) is retried up to 3 attempts in total, each spaced by the rate limiter, before giving up. The failure is logged. It never fails the run and never blocks the song from being cached or sent.
 
 ## Pipeline changes
 
-- The `analyzing` event gains `thumbnail_url` so the loading card can show an image ([home.md](home.md#recommendations-grid)).
+- The `analyzing` event gains `thumbnail_url` and `album_art_url` so the loading card can show the real art ([home.md](home.md#recommendations-grid)).
 - The `scored` event gains `thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id`.
 - `AppDb.add_song` takes the five new values and stores them. `AppDb.list_songs` returns them.
-- Lookups run on the pipeline's consumer thread. Analysis of the next clip is already prefetched in parallel, so the added delay (about 1 to 2 seconds per recommended song) overlaps with other work.
+- Lookups run on the pipeline's consumer thread, before the `analyzing` event. Clips are already prefetched in parallel, so the added delay (about 1 to 2 seconds per song) overlaps with other work.
 
 ## Frontend fallback
 
@@ -74,7 +76,7 @@ The frontend picks an image in this order: `album_art_url`, then `thumbnail_url`
 ## Existing rows
 
 - The migration fills `thumbnail_url` for every existing row from its `video_id`. See [database.md](database.md#migrations).
-- Existing rows keep NULL for the four MusicBrainz-derived columns, and the cards use the YouTube thumbnail. A one-time backfill command that looks up recommended songs with NULL `musicbrainz_recording_id` may be added later. Because "not looked up" and "no match" are both NULL, such a backfill would retry songs that had no match.
+- Existing rows keep NULL for the four MusicBrainz-derived columns, and the cards use the YouTube thumbnail. A one-time backfill command that looks up songs with NULL `musicbrainz_recording_id` may be added later. Because "not looked up" and "no match" are both NULL, such a backfill would retry songs that had no match.
 
 ## Testing
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from appdb import AppDb, get_artist_key
+from artwork import find_artwork
 from fetch import OVERFETCH, Song, fetch_songs
 
 MAX_QUERIES = 6
@@ -123,6 +124,8 @@ def run(
                 song, song_query, tier = found
                 pending = pool.submit(next, songs, None)
                 analyzed += 1
+                # Looked up before analysis so the loading card shows the same art as the final card.
+                artwork = find_artwork(song.video_id, song.artist, song.title)
                 result = {
                     "video_id": song.video_id,
                     "title": song.title,
@@ -130,6 +133,8 @@ def run(
                     "url": song.url,
                     "query": song_query,
                     "tier": tier,
+                    "thumbnail_url": artwork.thumbnail_url,
+                    "album_art_url": artwork.album_art_url,
                 }
                 yield {
                     "type": "analyzing",
@@ -142,8 +147,21 @@ def run(
                 verdict = analyze(song.clip_path, taste, exploration)
                 song.clip_path.unlink(missing_ok=True)
 
-                # 5. Cache the song so later runs skip it, then report the result.
-                appdb.add_song(song.video_id, song.title, song.artist, song.url, verdict.recommended, verdict.confidence, song_query)
+                # 5. Cache the song so later runs skip it, then report.
+                appdb.add_song(
+                    song.video_id,
+                    song.title,
+                    song.artist,
+                    song.url,
+                    verdict.recommended,
+                    verdict.confidence,
+                    song_query,
+                    thumbnail_url=artwork.thumbnail_url,
+                    album_art_url=artwork.album_art_url,
+                    album=artwork.album,
+                    musicbrainz_recording_id=artwork.recording_id,
+                    musicbrainz_release_group_id=artwork.release_group_id,
+                )
 
                 recommended += verdict.recommended
                 yield {
@@ -152,6 +170,9 @@ def run(
                     **result,
                     "recommended": verdict.recommended,
                     "confidence": verdict.confidence,
+                    "album": artwork.album,
+                    "musicbrainz_recording_id": artwork.recording_id,
+                    "musicbrainz_release_group_id": artwork.release_group_id,
                 }
                 if recommended >= count:
                     break

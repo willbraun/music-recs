@@ -45,7 +45,7 @@ Fixed to the bottom, full width, about 72 px tall. Hidden until the first song i
 [art 54 px tall] Title - Artist     [prev][play/pause][next]   0:42 ----o---- 3:10   [vol]  [expand]
 ```
 
-- A small box, 54 px tall, at the left. It is square (54 x 54 px) when the song has album art or only the placeholder is shown, and 16:9 (96 x 54 px) only when it falls back to the YouTube thumbnail. Artwork covers the real iframe, which sits underneath, sized with CSS.
+- A small square box (54 x 54 px) at the left. A YouTube thumbnail fallback is zoomed 4/3 so its letterbox bars are cropped and the square cover fills the box. Artwork covers the real iframe, which sits underneath, sized with CSS.
 - Title and artist, one line each, ellipsis. The title links to nothing; an "Open on YouTube" icon link is in the controls.
 - Previous, play/pause, next buttons (shadcn-svelte `Button`, `variant="ghost"`, icon size).
 - A seek slider (shadcn-svelte `Slider`) with elapsed and total time. Dragging seeks on release.

@@ -5,6 +5,7 @@ import pipeline
 import pytest
 from analyze import Verdict
 from appdb import AppDb
+from artwork import SongArtwork
 from fetch import Song
 from huggingface_hub.errors import LocalEntryNotFoundError
 from taste_profile import TasteProfile
@@ -124,7 +125,7 @@ def appdb(tmp_path: Path) -> AppDb:
 @pytest.fixture
 def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Replaces the model and network layers; verdicts are taken per video id."""
-    state = SimpleNamespace(found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[])
+    state = SimpleNamespace(found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[], artwork_calls=[])
 
     def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset()):
         state.avoid_artists = avoid_artists
@@ -141,7 +142,14 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         state.avoided = avoid_artists
         return [SimpleNamespace(query="generated", tier="adjacent")]
 
+    def fake_find_artwork(video_id: str, artist: str, title: str) -> SongArtwork:
+        state.artwork_calls.append(video_id)
+        return SongArtwork(
+            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", f"art-{video_id}", f"Album {video_id}", f"rec-{video_id}", f"rg-{video_id}"
+        )
+
     monkeypatch.setattr(pipeline, "_find_songs", fake_find_songs)
+    monkeypatch.setattr(pipeline, "find_artwork", fake_find_artwork)
     monkeypatch.setattr(pipeline, "_download_model_if_missing", lambda model_id: iter(()))
     monkeypatch.setattr("analyze.analyze", fake_analyze)
     monkeypatch.setattr("queries.generate_queries", fake_generate)
@@ -169,6 +177,42 @@ def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pip
     assert scored["confidence"] == 0.7
     assert scored["video_id"] == "a"
     assert "description" not in scored
+
+
+def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.found = ["a"]
+
+    events = list(pipeline.run("q", 1, 50, appdb))
+
+    analyzing = [e for e in events if e["type"] == "analyzing"][0]
+    scored = [e for e in events if e["type"] == "scored"][0]
+    assert analyzing["thumbnail_url"] == "https://img.youtube.com/vi/a/hqdefault.jpg"
+    assert analyzing["album_art_url"] == "art-a"
+    assert (scored["thumbnail_url"], scored["album_art_url"], scored["album"]) == (
+        "https://img.youtube.com/vi/a/hqdefault.jpg",
+        "art-a",
+        "Album a",
+    )
+    assert (scored["musicbrainz_recording_id"], scored["musicbrainz_release_group_id"]) == ("rec-a", "rg-a")
+    stored = appdb.list_songs()[0]
+    assert (stored["thumbnail_url"], stored["album_art_url"], stored["album"]) == (
+        scored["thumbnail_url"],
+        "art-a",
+        "Album a",
+    )
+    assert (stored["musicbrainz_recording_id"], stored["musicbrainz_release_group_id"]) == ("rec-a", "rg-a")
+
+
+def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
+    stub_pipeline.found = ["a", "b"]
+
+    scored = {e["video_id"]: e for e in pipeline.run("q", 1, 50, appdb) if e["type"] == "scored"}
+
+    assert stub_pipeline.artwork_calls == ["a", "b"]
+    assert scored["a"]["album_art_url"] == "art-a"
+    assert scored["a"]["album"] == "Album a"
+    assert appdb.list_songs()[1]["album_art_url"] == "art-a"
 
 
 def test_run_reports_running_recommended_count(appdb: AppDb, stub_pipeline) -> None:

@@ -21,6 +21,38 @@ def test_add_song_overwrites_existing_row(tmp_path: Path) -> None:
     assert db.get_seen_ids() == {"abc"}
 
 
+def test_add_song_stores_and_lists_artwork(tmp_path: Path) -> None:
+    db = AppDb(tmp_path / "app.db")
+    db.add_song(
+        "abc",
+        "T",
+        "A",
+        "u",
+        True,
+        0.9,
+        "q",
+        thumbnail_url="thumb",
+        album_art_url="art",
+        album="Album",
+        musicbrainz_recording_id="rec",
+        musicbrainz_release_group_id="rg",
+    )
+
+    song = db.list_songs()[0]
+
+    assert (song["thumbnail_url"], song["album_art_url"], song["album"]) == ("thumb", "art", "Album")
+    assert (song["musicbrainz_recording_id"], song["musicbrainz_release_group_id"]) == ("rec", "rg")
+
+
+def test_add_song_without_artwork_lists_nulls(tmp_path: Path) -> None:
+    db = AppDb(tmp_path / "app.db")
+    _add_song(db)
+
+    song = db.list_songs()[0]
+
+    assert [song[k] for k in ("album_art_url", "album", "musicbrainz_recording_id", "musicbrainz_release_group_id")] == [None] * 4
+
+
 def test_confidence_must_be_between_half_and_one(tmp_path: Path) -> None:
     db = AppDb(tmp_path / "app.db")
     for confidence in (0.3, 1.2):

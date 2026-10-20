@@ -59,16 +59,16 @@ A server-sent event stream of the run's progress. Content type `text/event-strea
 
 Every event has a `type`. The shapes:
 
-| `type`              | Fields                                                                                                                                     | Meaning                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `started`           | `query` (string or null), `count`, `exploration`                                                                                           | The taste is loaded and the run began             |
-| `downloading_model` | `model` (string)                                                                                                                           | A model is not cached yet and is being downloaded |
-| `queries`           | `queries`: list of `{query, tier}`                                                                                                         | Search queries were generated                     |
-| `fetching`          | none                                                                                                                                       | Clips are being downloaded                        |
-| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url` (_planned_)                           | The audio model is listening to a song            |
-| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `recommended` (boolean), `confidence`, plus the artwork fields (_planned_) | The song was analyzed and saved                   |
-| `done`              | `analyzed`, `recommended`, `count`                                                                                                         | The run finished                                  |
-| `error`             | `message` (string)                                                                                                                         | The run failed. This is the last event.           |
+| `type`              | Fields                                                                                                                         | Meaning                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `started`           | `query` (string or null), `count`, `exploration`                                                                               | The taste is loaded and the run began             |
+| `downloading_model` | `model` (string)                                                                                                               | A model is not cached yet and is being downloaded |
+| `queries`           | `queries`: list of `{query, tier}`                                                                                             | Search queries were generated                     |
+| `fetching`          | none                                                                                                                           | Clips are being downloaded                        |
+| `analyzing`         | `index`, `recommended_count`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `thumbnail_url`, `album_art_url`          | The audio model is listening to a song            |
+| `scored`            | `index`, `video_id`, `title`, `artist`, `url`, `query`, `tier`, `recommended` (boolean), `confidence`, plus the artwork fields | The song was analyzed and saved                   |
+| `done`              | `analyzed`, `recommended`, `count`                                                                                             | The run finished                                  |
+| `error`             | `message` (string)                                                                                                             | The run failed. This is the last event.           |
 
 - `tier` is `familiar`, `adjacent`, or `adventurous` for generated queries, and `null` when the user gave a `query`.
 - `recommended` is the model's YES/NO answer and `confidence` is the probability of that answer, a number from `0.5` to `1`.
@@ -92,11 +92,11 @@ Returned by `GET /api/songs`. A `scored` event carries the same fields except `a
 | `confidence`                   | number         | Probability of the answer, `0.5` to `1`. Show as a percentage. |
 | `analyzed_at`                  | string         |                                                                |
 | `query`                        | string or null | The search query that found the song. Null for old rows.       |
-| `thumbnail_url`                | string         | _Planned._ [artwork.md](artwork.md)                            |
-| `album_art_url`                | string or null | _Planned._                                                     |
-| `album`                        | string or null | _Planned._                                                     |
-| `musicbrainz_recording_id`     | string or null | _Planned._                                                     |
-| `musicbrainz_release_group_id` | string or null | _Planned._                                                     |
+| `thumbnail_url`                | string         | [artwork.md](artwork.md)                                       |
+| `album_art_url`                | string or null |                                                                |
+| `album`                        | string or null |                                                                |
+| `musicbrainz_recording_id`     | string or null |                                                                |
+| `musicbrainz_release_group_id` | string or null |                                                                |
 
 ### `GET /api/songs`
 

@@ -19,24 +19,27 @@ The schema is versioned by timestamped SQL files in [api/migrations/](../api/mig
 
 One row per analyzed song.
 
-| Column        | Type    | Constraints                                      | Description                                                                                                     |
-| ------------- | ------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `video_id`    | TEXT    | PRIMARY KEY                                      | YouTube video id                                                                                                |
-| `title`       | TEXT    | NOT NULL                                         | Song title                                                                                                      |
-| `artist`      | TEXT    | NOT NULL                                         | Artist name                                                                                                     |
-| `url`         | TEXT    | NOT NULL                                         | `https://www.youtube.com/watch?v=<video_id>`                                                                    |
-| `verdict`     | INTEGER | NOT NULL, CHECK (`verdict` IN (0, 1))            | Music Flamingo's answer for the clip: `1` is YES (recommended), `0` is NO. Decided from the YES/NO token logits |
-| `confidence`  | REAL    | NOT NULL, CHECK (`confidence` BETWEEN 0.5 AND 1) | Probability of the chosen answer, from the same logits. Stored as a fraction, not a percentage                  |
-| `analyzed_at` | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP              | When the song was analyzed                                                                                      |
-| `query`       | TEXT    |                                                  | Search query that found the song. NULL for rows from before this column existed.                                |
+| Column                         | Type    | Constraints                                      | Description                                                                                                     |
+| ------------------------------ | ------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `video_id`                     | TEXT    | PRIMARY KEY                                      | YouTube video id                                                                                                |
+| `title`                        | TEXT    | NOT NULL                                         | Song title                                                                                                      |
+| `artist`                       | TEXT    | NOT NULL                                         | Artist name                                                                                                     |
+| `url`                          | TEXT    | NOT NULL                                         | `https://www.youtube.com/watch?v=<video_id>`                                                                    |
+| `verdict`                      | INTEGER | NOT NULL, CHECK (`verdict` IN (0, 1))            | Music Flamingo's answer for the clip: `1` is YES (recommended), `0` is NO. Decided from the YES/NO token logits |
+| `confidence`                   | REAL    | NOT NULL, CHECK (`confidence` BETWEEN 0.5 AND 1) | Probability of the chosen answer, from the same logits. Stored as a fraction, not a percentage                  |
+| `analyzed_at`                  | TEXT    | NOT NULL, DEFAULT CURRENT_TIMESTAMP              | When the song was analyzed                                                                                      |
+| `query`                        | TEXT    |                                                  | Search query that found the song. NULL for rows from before this column existed.                                |
+| `thumbnail_url`                | TEXT    |                                                  | YouTube thumbnail URL, built from `video_id`. Filled for existing rows by the artwork migration                 |
+| `album_art_url`                | TEXT    |                                                  | Cover Art Archive URL, or NULL when there is no front cover                                                     |
+| `album`                        | TEXT    |                                                  | MusicBrainz release group title, display only                                                                   |
+| `musicbrainz_recording_id`     | TEXT    |                                                  | Matched MusicBrainz recording, NULL when there is no confident match                                            |
+| `musicbrainz_release_group_id` | TEXT    |                                                  | Release group used to build the artwork URL                                                                     |
 
 - `AppDb.add_song` is an upsert, so re-adding a `video_id` overwrites the row and resets `analyzed_at`. It does not use `INSERT OR REPLACE`, which deletes the row first.
 - `AppDb.list_songs` filters, orders (default `analyzed_at DESC, rowid DESC`), and pages in SQL. See [songs-page.md](songs-page.md#api).
-- How the display columns are filled is described in [artwork.md](artwork.md).
+- How the display columns are filled is described in [artwork.md](artwork.md). The columns were added by `20261020120000_artwork.sql`, which also fills `thumbnail_url` for every existing row from its `video_id`.
 - Every analyzed song has a verdict, so every analyzed song is stored. `AppDb.list_songs` returns `verdict` as `recommended` (boolean).
 - Searches skip `songs.video_id` alone (`AppDb.get_seen_ids`).
-
-`thumbnail_url`, `album_art_url`, `album`, `musicbrainz_recording_id`, and `musicbrainz_release_group_id` are planned in [artwork.md](artwork.md) and are not in the schema yet. They arrive in a later migration, which also runs `UPDATE songs SET thumbnail_url = 'https://img.youtube.com/vi/' || video_id || '/hqdefault.jpg'` so every existing row has a thumbnail.
 
 ## `taste`
 

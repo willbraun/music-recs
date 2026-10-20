@@ -7,7 +7,7 @@ from typing import Iterator
 from urllib.parse import quote_plus
 
 import yt_dlp
-from yt_dlp.utils import DownloadError
+from yt_dlp.utils import YoutubeDLError
 
 CLIP_SECONDS = 45
 MIN_DURATION = 90
@@ -116,7 +116,7 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
                     return None
                 ydl.process_ie_result(info, download=True)
             break
-        except DownloadError as e:
+        except YoutubeDLError as e:
             # A sign-in requirement belongs to the video, so retrying cannot help.
             # ffmpeg fails sporadically (HTTP errors on the stream URL); a fresh extraction usually fixes it.
             if attempt == DOWNLOAD_ATTEMPTS - 1 or "Please sign in" in str(e):
@@ -132,15 +132,17 @@ def fetch_songs(
 
     Up to DOWNLOAD_WORKERS candidates are fetched ahead of the consumer, in search order.
     """
-    candidates = iter([e for e in _search(query, count * OVERFETCH) if e["id"] not in skip_ids])
+    # Search can list a video twice; parallel downloads of one id would clobber each other's .part file.
+    unique_ids = dict.fromkeys(e["id"] for e in _search(query, count * OVERFETCH))
+    candidates = iter([video_id for video_id in unique_ids if video_id not in skip_ids])
     pending: deque[Future[Song | None]] = deque()
     yielded = 0
     with ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as pool:
         try:
             while yielded < count:
-                while len(pending) < DOWNLOAD_WORKERS and (entry := next(candidates, None)):
-                    skip_ids.add(entry["id"])
-                    pending.append(pool.submit(_download_song, entry["id"], workdir))
+                while len(pending) < DOWNLOAD_WORKERS and (video_id := next(candidates, None)):
+                    skip_ids.add(video_id)
+                    pending.append(pool.submit(_download_song, video_id, workdir))
                 if not pending:
                     return
                 song = pending.popleft().result()

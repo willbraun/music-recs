@@ -101,7 +101,7 @@ States and motion:
 
 - A responsive grid of [song cards](song-card.md). Columns fill the available width (`repeat(auto-fill, minmax(12rem, 1fr))`) and rows wrap, so every recommendation is reachable with normal page scrolling. With a small count the grid looks like a single row.
 - New cards are appended at the end in the order songs finish analyzing. The page scroll position is never moved automatically. A "New" indicator is not needed.
-- The loading card is the last item. It uses the YouTube thumbnail from `thumbnail_url` (see [artwork.md](artwork.md)), dimmed, with a centered spinner, and shows the title and artist from the `analyzing` event.
+- The loading card is the last item. It uses the album art from `album_art_url`, falling back to the YouTube thumbnail from `thumbnail_url` (see [artwork.md](artwork.md)), dimmed, with a centered spinner, and shows the title and artist from the `analyzing` event.
 - Cards fill their grid cell, and appending never reorders or resizes existing cards.
 - The grid is hidden in `idle` and whenever it has no cards. It appears as soon as the first loading card is added (even in `preparing`), and in `done` it shows the empty state when there are no recommendations.
 

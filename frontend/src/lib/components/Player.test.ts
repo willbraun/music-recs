@@ -167,7 +167,7 @@ describe('player bar', () => {
 		)
 	})
 
-	it('shows square collapsed artwork for album art and a 16:9 box for video thumbnails', () => {
+	it('shows square collapsed artwork for album art, thumbnails and the placeholder', () => {
 		Object.assign(player, {
 			current: { ...song, album_art_url: 'https://example.com/album.jpg' },
 			queue: [song],
@@ -182,7 +182,7 @@ describe('player bar', () => {
 		})
 		cleanup()
 		render(Player)
-		expect(screen.getByTestId('player-video').style.width).toBe('96px')
+		expect(screen.getByTestId('player-video').style.width).toBe('54px')
 
 		Object.assign(player, { current: song })
 		cleanup()

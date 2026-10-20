@@ -21,7 +21,7 @@ All new fields are nullable. See [artwork.md](artwork.md).
 
 ## Layout
 
-- Square image (1:1) on top, rounded corners, `object-cover`. A 16:9 YouTube thumbnail is center-cropped.
+- Square image (1:1) on top, rounded corners, `object-cover`. A YouTube thumbnail (4:3 with black bars around a square cover) is zoomed 4/3 so the cover fills the square.
 - Below the image: title (one line, ellipsis, full title in a tooltip), artist (one line), and album (one line, muted) if present.
 - A confidence badge (for example "87%") in a corner of the image. The value comes from `confidence`, a fraction rounded to a whole percent.
 - On the Songs page, songs with `recommended = false` show a muted "Not recommended" badge.
@@ -49,7 +49,7 @@ If an image fails to load (for example Cover Art Archive returns 404), the card 
 Shown on Home between `analyzing` and `scored` ([home.md](home.md#recommendations-grid)):
 
 - Same size as a normal card so the layout does not shift when it resolves.
-- Image: `thumbnail_url`, dimmed, with a centered spinner.
+- Image: `album_art_url`, falling back to `thumbnail_url` (same rules as the song card), dimmed, with a centered spinner.
 - Text: title and artist from the `analyzing` event.
 - No play button, badge, or links.
 - Has `aria-busy="true"` and an accessible label such as "Analyzing {title}".

@@ -19,6 +19,8 @@
 
 	const MIN_COUNT = 1
 	const MAX_COUNT = 50
+	const REVEAL_CLASS =
+		'animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none'
 
 	let count = $state(3)
 	let exploration = $state(50)
@@ -150,23 +152,37 @@
 	{#if isGridVisible}
 		<section class="flex flex-col gap-3" aria-labelledby="recommended-heading">
 			<div class="flex items-center justify-between">
-				<h2 id="recommended-heading" class="text-2xl font-semibold">
+				<h2
+					id="recommended-heading"
+					class={`text-2xl font-semibold ${REVEAL_CLASS}`}
+				>
 					Recommended for you
 				</h2>
 				{#if isPlayVisible}
-					<Button type="button" variant="outline" onclick={playAll}>
+					<Button
+						type="button"
+						variant="outline"
+						class={REVEAL_CLASS}
+						onclick={playAll}
+					>
 						<PlayIcon />
 						Play All
 					</Button>
 				{/if}
 			</div>
 			<ul class="grid grid-cols-4 gap-4" aria-labelledby="recommended-heading">
-				{#each run.cards as card (getCardKey(card))}
-					<li>
+				{#each run.cards as card, index (getCardKey(card))}
+					<li class={REVEAL_CLASS}>
 						{#if card.kind === 'loading'}
-							<LoadingSongCard title={card.title} artist={card.artist} />
+							<LoadingSongCard
+								title={card.title}
+								artist={card.artist}
+								thumbnailUrl={card.thumbnail_url}
+								albumArtUrl={card.album_art_url}
+							/>
 						{:else}
 							<SongCard
+								eager={index < 4}
 								song={card.song}
 								queue={songs}
 								origin={RUN_QUEUE_ORIGIN}

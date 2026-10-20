@@ -64,22 +64,47 @@ class AppDb:
         verdict: bool,
         confidence: float,
         query: str,
+        *,
+        thumbnail_url: str | None = None,
+        album_art_url: str | None = None,
+        album: str | None = None,
+        musicbrainz_recording_id: str | None = None,
+        musicbrainz_release_group_id: str | None = None,
     ) -> None:
         # An upsert, not INSERT OR REPLACE, which deletes the row first.
         with connect(self._path) as conn:
             conn.execute(
-                "INSERT INTO songs (video_id, title, artist, url, verdict, confidence, query) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO songs (video_id, title, artist, url, verdict, confidence, query, thumbnail_url, "
+                "album_art_url, album, musicbrainz_recording_id, musicbrainz_release_group_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (video_id) DO UPDATE SET title = excluded.title, artist = excluded.artist, "
                 "url = excluded.url, verdict = excluded.verdict, confidence = excluded.confidence, "
-                "query = excluded.query, analyzed_at = CURRENT_TIMESTAMP",
-                (video_id, title, artist, url, verdict, confidence, query),
+                "query = excluded.query, thumbnail_url = excluded.thumbnail_url, "
+                "album_art_url = excluded.album_art_url, album = excluded.album, "
+                "musicbrainz_recording_id = excluded.musicbrainz_recording_id, "
+                "musicbrainz_release_group_id = excluded.musicbrainz_release_group_id, "
+                "analyzed_at = CURRENT_TIMESTAMP",
+                (
+                    video_id,
+                    title,
+                    artist,
+                    url,
+                    verdict,
+                    confidence,
+                    query,
+                    thumbnail_url,
+                    album_art_url,
+                    album,
+                    musicbrainz_recording_id,
+                    musicbrainz_release_group_id,
+                ),
             )
 
     def list_songs(self) -> list[dict]:
         with connect(self._path) as conn:
             rows = conn.execute(
-                "SELECT video_id, title, artist, url, verdict, confidence, analyzed_at, query "
+                "SELECT video_id, title, artist, url, verdict, confidence, analyzed_at, query, thumbnail_url, "
+                "album_art_url, album, musicbrainz_recording_id, musicbrainz_release_group_id "
                 "FROM songs ORDER BY analyzed_at DESC, rowid DESC"
             )
             songs = [dict(row) for row in rows]

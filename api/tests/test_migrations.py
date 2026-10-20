@@ -19,10 +19,27 @@ def test_fresh_database_is_migrated_with_no_taste(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     AppDb(path)
 
-    assert [r[0] for r in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000]
+    assert [r[0] for r in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000, 20261020120000]
     tables = {r["name"] for r in _query(path, "SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert {"songs", "taste", "schema_migrations"} <= tables
     assert AppDb(path).get_current_taste() is None
+
+
+def test_artwork_migration_fills_thumbnails_for_existing_rows(tmp_path: Path) -> None:
+    path = tmp_path / "x.db"
+    conn = sqlite3.connect(path)
+    initial = Path(__file__).parent.parent / "migrations" / "20261010120000_initial.sql"
+    conn.executescript(initial.read_text())
+    conn.execute("INSERT INTO songs (video_id, title, artist, url, verdict, confidence) VALUES ('abc', 't', 'a', 'u', 1, 0.9)")
+    conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
+    conn.execute("INSERT INTO schema_migrations VALUES (20261010120000)")
+    conn.commit()
+    conn.close()
+
+    songs = AppDb(path).list_songs()
+
+    assert songs[0]["thumbnail_url"] == "https://img.youtube.com/vi/abc/hqdefault.jpg"
+    assert songs[0]["album_art_url"] is None
 
 
 def test_reopening_is_a_no_op(tmp_path: Path) -> None:
