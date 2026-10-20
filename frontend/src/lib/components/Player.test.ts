@@ -167,6 +167,29 @@ describe('player bar', () => {
 		)
 	})
 
+	it('shows square collapsed artwork for album art and a 16:9 box for video thumbnails', () => {
+		Object.assign(player, {
+			current: { ...song, album_art_url: 'https://example.com/album.jpg' },
+			queue: [song],
+			index: 0,
+			status: 'playing',
+		})
+		render(Player)
+		expect(screen.getByTestId('player-video').style.width).toBe('54px')
+
+		Object.assign(player, {
+			current: { ...song, thumbnail_url: 'https://example.com/thumb.jpg' },
+		})
+		cleanup()
+		render(Player)
+		expect(screen.getByTestId('player-video').style.width).toBe('96px')
+
+		Object.assign(player, { current: song })
+		cleanup()
+		render(Player)
+		expect(screen.getByTestId('player-video').style.width).toBe('54px')
+	})
+
 	it('shows the error message for the current song', () => {
 		Object.assign(player, {
 			current: song,

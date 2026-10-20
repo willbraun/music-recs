@@ -42,10 +42,10 @@ Exposed functions: `playSong(song, queue)`, `togglePlayback()`, `playNext()`, `p
 Fixed to the bottom, full width, about 72 px tall. Hidden until the first song is played, then it slides in.
 
 ```
-[video 16:9] Title - Artist     [prev][play/pause][next]   0:42 ----o---- 3:10   [vol]  [expand]
+[art 54 px tall] Title - Artist     [prev][play/pause][next]   0:42 ----o---- 3:10   [vol]  [expand]
 ```
 
-- A small live video (about 96 x 54 px) at the left. This is the real iframe, sized with CSS.
+- A small box, 54 px tall, at the left. It is square (54 x 54 px) when the song has album art or only the placeholder is shown, and 16:9 (96 x 54 px) only when it falls back to the YouTube thumbnail. Artwork covers the real iframe, which sits underneath, sized with CSS.
 - Title and artist, one line each, ellipsis. The title links to nothing; an "Open on YouTube" icon link is in the controls.
 - Previous, play/pause, next buttons (shadcn-svelte `Button`, `variant="ghost"`, icon size).
 - A seek slider (shadcn-svelte `Slider`) with elapsed and total time. Dragging seeks on release.

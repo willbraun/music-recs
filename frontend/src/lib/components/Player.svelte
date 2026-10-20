@@ -34,6 +34,10 @@
 		const url = player.current?.album_art_url ?? player.current?.thumbnail_url
 		return url && url !== failedArtUrl ? url : null
 	})
+	// Only the YouTube thumbnail fallback is a 16:9 video frame; album art and the placeholder are square.
+	let isSquareArt = $derived(
+		artUrl === null || artUrl === player.current?.album_art_url
+	)
 	// Value shown while the user drags the seek thumb, before it is committed.
 	let dragPosition: number | null = $state(null)
 
@@ -58,7 +62,7 @@
 	let videoStyle = $derived(
 		player.expanded
 			? 'left: calc((100% - var(--video-width)) / 2); top: 56px; width: var(--video-width); height: calc(var(--video-width) * 9 / 16);'
-			: 'left: 12px; top: 9px; width: 96px; height: 54px;'
+			: `left: 12px; top: 9px; width: ${isSquareArt ? 54 : 96}px; height: 54px;`
 	)
 	let panelStyle = $derived(
 		player.expanded
@@ -154,7 +158,9 @@
 	<div
 		class="absolute inset-x-0 bottom-0 flex h-18 items-center gap-3 pr-3 transition-[padding] duration-300 motion-reduce:transition-none {player.expanded
 			? 'pl-4'
-			: 'pl-30'}"
+			: isSquareArt
+				? 'pl-19.5'
+				: 'pl-30'}"
 	>
 		{#if !player.expanded && player.current}
 			<div class="min-w-0 flex-1 md:w-56 md:flex-none">
