@@ -60,14 +60,16 @@ def unload_model() -> None:
         torch.mps.empty_cache()
 
 
-def _build_prompt(taste: str, tiers: list[str]) -> str:
+def _build_prompt(taste: str, tiers: list[str], avoid_artists: list[str]) -> str:
     lines = "\n".join(f"{i}. {TIER_INSTRUCTIONS[tier]}" for i, tier in enumerate(tiers, 1))
+    avoid = f"I have heard these artists too often, so avoid them: {', '.join(avoid_artists)}.\n" if avoid_artists else ""
     return (
         f"My musical taste is: {taste}\n\n"
         f"Write {len(tiers)} search queries for finding songs on YouTube Music, one per line below. "
         "Each query is an artist name with no explanation. "
         "Recommend artists, not specific songs or genres.\n"
         "Never go against the exclusions in my taste.\n"
+        f"{avoid}"
         f"{lines}\n\n"
         f"Respond with only a JSON array of {len(tiers)} strings, in the same order."
     )
@@ -98,25 +100,32 @@ def _generate_text(prompt: str) -> str:
     return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
-def generate_queries(taste: str, liked_artists: list[str], exploration: int, n: int) -> list[GeneratedQuery]:
+def generate_queries(
+    taste: str, liked_artists: list[str], exploration: int, n: int, avoid_artists: list[str] | None = None
+) -> list[GeneratedQuery]:
     """Generate `n` search queries whose distance from `taste` follows `exploration` (0-100).
 
     `liked_artists` are the fallback queries when the model returns too few. Queries are distinct,
     so fewer than `n` come back when the model and the fallbacks run out of distinct ones.
+    The model is asked to avoid `avoid_artists`, and queries naming them are dropped.
     """
+    avoid = avoid_artists or []
+    avoid_keys = {artist.casefold() for artist in avoid}
     tiers = allocate_tiers(n, exploration)
-    text = _generate_text(_build_prompt(taste, tiers))
+    text = _generate_text(_build_prompt(taste, tiers, avoid))
     unload_model()
 
     generated: list[GeneratedQuery] = []
     used: set[str] = set()
     for query, tier in zip(_parse(text), tiers):
-        if query.casefold() not in used:
+        if query.casefold() not in used and query.casefold() not in avoid_keys:
             used.add(query.casefold())
             generated.append(GeneratedQuery(query, tier))
     # Pad with taste-derived queries when the model returned too few.
     fallback = _get_fallback_queries(taste, liked_artists)
     random.shuffle(fallback)
+    # Avoided artists are the last resort.
+    fallback.sort(key=lambda query: query.casefold() in avoid_keys)
     for query in fallback:
         if len(generated) >= n:
             break

@@ -66,3 +66,14 @@ def test_taste_table_rejects_a_second_row(tmp_path: Path) -> None:
             conn.execute("INSERT INTO taste (id, profile) VALUES (2, '{}')")
     finally:
         conn.close()
+
+
+def test_get_recommended_artist_counts_groups_lead_artists_and_ignores_rejected_songs(tmp_path: Path) -> None:
+    db = AppDb(tmp_path / "app.db")
+    db.add_song("a", "T", "Flume", "u", True, 0.9, "q")
+    db.add_song("b", "T", "flume, Kai", "u", True, 0.9, "q")
+    db.add_song("c", "T", "Flume", "u", False, 0.9, "q")
+    db.add_song("d", "T", "Muse", "u", True, 0.9, "q")
+
+    assert db.get_recommended_artist_counts(100) == {"flume": 2, "Muse": 1}
+    assert db.get_recommended_artist_counts(2) == {"Muse": 1, "flume": 1}

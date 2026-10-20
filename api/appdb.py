@@ -7,6 +7,11 @@ from taste_profile import Taste, TasteProfile
 DB_PATH = Path(__file__).parent / "app.db"
 
 
+def get_artist_key(artist: str) -> str:
+    """Normalize to the lead artist, since collaborations are credited as "Lead, Guest"."""
+    return artist.split(",")[0].strip().casefold()
+
+
 class AppDb:
     """Songs and the user's taste. Schema changes go in api/migrations."""
 
@@ -35,6 +40,20 @@ class AppDb:
     def get_seen_ids(self) -> set[str]:
         with connect(self._path) as conn:
             return {row["video_id"] for row in conn.execute("SELECT video_id FROM songs")}
+
+    def get_recommended_artist_counts(self, limit: int) -> dict[str, int]:
+        """Count the last `limit` recommended songs per lead artist, keyed by the artist's most recent name."""
+        names: dict[str, str] = {}
+        counts: dict[str, int] = {}
+        with connect(self._path) as conn:
+            rows = conn.execute(
+                "SELECT artist FROM songs WHERE verdict = 1 ORDER BY analyzed_at DESC, rowid DESC LIMIT ?", (limit,)
+            )
+            for row in rows:
+                key = get_artist_key(row["artist"])
+                names.setdefault(key, row["artist"].split(",")[0].strip())
+                counts[key] = counts.get(key, 0) + 1
+        return {names[key]: count for key, count in counts.items()}
 
     def add_song(
         self,

@@ -4,12 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterator
 
-from appdb import AppDb
+from appdb import AppDb, get_artist_key
 from fetch import OVERFETCH, Song, fetch_songs
 
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
 MAX_SEARCH_RESULTS_PER_QUERY = 300
+FREQUENT_ARTIST_RECOMMENDATIONS = 3
+FREQUENT_ARTIST_WINDOW = 100
 NO_TASTE_MESSAGE = "Set your taste first"
 
 
@@ -18,11 +20,16 @@ def _find_songs(
     count: int,
     skip_ids: set[str],
     workdir: Path,
+    avoid_artists: frozenset[str] | set[str] = frozenset(),
 ) -> Iterator[tuple[Song, str, str | None]]:
-    """Yield songs in expanding batches, up to the per-query search result limit. Each artist appears once."""
+    """Yield songs in expanding batches, up to the per-query search result limit. Each artist appears once.
+
+    Songs by `avoid_artists` (artist keys) are held back and yielded last, only if the consumer still wants more.
+    """
     max_count = MAX_SEARCH_RESULTS_PER_QUERY // OVERFETCH * len(searches)
     count = min(count, max_count)
     seen_artists: set[str] = set()
+    deferred: list[tuple[Song, str, str | None]] = []
     while count:
         remaining = count
         for i, (query, tier) in enumerate(searches):
@@ -34,17 +41,20 @@ def _find_songs(
                 skip_ids.add(song.video_id)
 
                 # Skip songs by artists already seen anywhere in this run.
-                # The lead artist, since collaborations are credited as "Lead, Guest".
-                artist_key = song.artist.split(",")[0].strip().casefold()
+                artist_key = get_artist_key(song.artist)
                 if artist_key in seen_artists:
                     song.clip_path.unlink(missing_ok=True)
                     continue
                 seen_artists.add(artist_key)
+                if artist_key in avoid_artists:
+                    deferred.append((song, query, tier))
+                    continue
                 remaining -= 1
                 yield song, query, tier
         if count == max_count:
-            return
+            break
         count = min(count * 2, max_count)
+    yield from deferred
 
 
 def _download_model_if_missing(model_id: str) -> Iterator[dict]:
@@ -81,13 +91,18 @@ def run(
         raise RuntimeError(NO_TASTE_MESSAGE)
     taste = saved_taste.text
     skip_ids = appdb.get_seen_ids()
+    # Artists recommended often already are avoided so the results stay varied.
+    artist_counts = appdb.get_recommended_artist_counts(FREQUENT_ARTIST_WINDOW)
+    frequent_artists = [artist for artist, n in artist_counts.items() if n >= FREQUENT_ARTIST_RECOMMENDATIONS]
     yield {"type": "started", "query": query, "count": count, "exploration": exploration}
 
     # 2. Use the given query, or generate queries from the taste at this exploration level.
     candidate_limit = count * CANDIDATES_PER_RECOMMENDATION
     if query is None:
         yield from _download_model_if_missing(QUERY_MODEL_ID)
-        generated = generate_queries(taste, saved_taste.profile.liked_artists, exploration, min(candidate_limit, MAX_QUERIES))
+        generated = generate_queries(
+            taste, saved_taste.profile.liked_artists, exploration, min(candidate_limit, MAX_QUERIES), frequent_artists
+        )
         searches = [(g.query, g.tier) for g in generated]
         yield {"type": "queries", "queries": [{"query": q, "tier": tier} for q, tier in searches]}
     else:
@@ -98,8 +113,9 @@ def run(
     yield {"type": "fetching"}
     analyzed = 0
     recommended = 0
+    avoid_keys = {get_artist_key(artist) for artist in frequent_artists}
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:
-        songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir))
+        songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir), avoid_keys)
         # fetch_songs downloads several clips ahead in parallel; this thread only hands them to the analyzer.
         pending = pool.submit(next, songs, None)
         try:

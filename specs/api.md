@@ -30,6 +30,8 @@ Request body:
 
 Without a `query`, search queries are generated from the taste at the given `exploration` level.
 
+A run tries not to recommend artists it already recommends often. A lead artist with `FREQUENT_ARTIST_RECOMMENDATIONS` (3) or more songs among the last `FREQUENT_ARTIST_WINDOW` (100) recommended songs in `songs` is avoided: generated queries steer away from them, and their songs are analyzed only after all other candidates are used up.
+
 Response `202`:
 
 ```json

@@ -70,6 +70,19 @@ def test_find_songs_skips_repeat_artists_and_deletes_their_clips(monkeypatch: py
     assert not fetched[3].clip_path.exists()
 
 
+def test_find_songs_defers_avoided_artists_to_the_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # A limit of one song makes this a single batch.
+    monkeypatch.setattr(pipeline, "MAX_SEARCH_RESULTS_PER_QUERY", 3)
+    monkeypatch.setattr(pipeline, "OVERFETCH", 3)
+    fetched = [_song("a", tmp_path, "Flume"), _song("b", tmp_path, "Muse")]
+    monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(fetched))
+
+    found = list(pipeline._find_songs([("a", None)], 1, set(), tmp_path, {"flume"}))
+
+    assert [s.video_id for s, _, _ in found] == ["b", "a"]
+    assert fetched[0].clip_path.exists()
+
+
 def test_find_songs_records_yielded_ids_as_skipped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter([_song("x", tmp_path)]))
     skip_ids: set[str] = set()
@@ -113,7 +126,8 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Replaces the model and network layers; verdicts are taken per video id."""
     state = SimpleNamespace(found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[])
 
-    def fake_find_songs(searches, count, skip_ids, workdir):
+    def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset()):
+        state.avoid_artists = avoid_artists
         state.fetch_args = (searches, count, set(skip_ids))
         for video_id in state.found:
             yield _song(video_id, tmp_path), searches[0][0], searches[0][1]
@@ -122,8 +136,9 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         state.analyzed.append((clip_path.stem, taste, exploration))
         return state.verdicts.get(clip_path.stem, Verdict(True, 0.9))
 
-    def fake_generate(taste: str, liked_artists: list[str], exploration: int, n: int):
+    def fake_generate(taste: str, liked_artists: list[str], exploration: int, n: int, avoid_artists: list[str]):
         state.generated.append((taste, liked_artists, exploration, n))
+        state.avoided = avoid_artists
         return [SimpleNamespace(query="generated", tier="adjacent")]
 
     monkeypatch.setattr(pipeline, "_find_songs", fake_find_songs)
@@ -218,3 +233,14 @@ def test_run_finishes_with_no_songs_found(appdb: AppDb, stub_pipeline) -> None:
     events = list(pipeline.run("q", 3, 50, appdb))
 
     assert events[-1] == {"type": "done", "analyzed": 0, "recommended": 0, "count": 3}
+
+
+def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> None:
+    for i in range(pipeline.FREQUENT_ARTIST_RECOMMENDATIONS):
+        appdb.add_song(f"f{i}", "t", "Flume", "u", True, 0.9, "q")
+    appdb.add_song("m", "t", "Muse", "u", True, 0.9, "q")
+
+    list(pipeline.run(None, 1, 50, appdb))
+
+    assert stub_pipeline.avoided == ["Flume"]
+    assert stub_pipeline.avoid_artists == {"flume"}

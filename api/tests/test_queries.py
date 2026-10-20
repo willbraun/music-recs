@@ -38,7 +38,7 @@ def test_parse_extracts_non_empty_strings(text: str, expected: list[str]) -> Non
 
 
 def test_build_prompt_lists_each_tier_in_order() -> None:
-    prompt = queries._build_prompt("indie rock", ["familiar", "adventurous"])
+    prompt = queries._build_prompt("indie rock", ["familiar", "adventurous"], [])
 
     assert "My musical taste is: indie rock" in prompt
     assert f"1. {queries.TIER_INSTRUCTIONS['familiar']}" in prompt
@@ -100,3 +100,22 @@ def test_generate_queries_ignores_extra_queries(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B", "C"]')
 
     assert [g.query for g in generate_queries("taste", [], 0, 2)] == ["A", "B"]
+
+
+def test_generate_queries_asks_model_to_avoid_artists_and_drops_them(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
+    prompts: list[str] = []
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt: prompts.append(prompt) or '["Flume", "Muse"]')
+
+    result = generate_queries("taste", [], 0, 2, ["flume"])
+
+    assert "avoid them: flume." in prompts[0]
+    assert [g.query for g in result] == ["Muse", "taste"]
+
+
+@pytest.mark.usefixtures("stub_model")
+def test_generate_queries_uses_avoided_fallback_artists_last(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
+
+    result = generate_queries("taste", ["Flume", "Muse"], 0, 2, ["Flume"])
+
+    assert [g.query for g in result] == ["Muse", "Flume"]
