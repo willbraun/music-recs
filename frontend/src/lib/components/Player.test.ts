@@ -1,4 +1,5 @@
 import type { Song } from '#lib/api.js'
+import { buildAppleMusicSearchUrl } from '#lib/links.js'
 import { cleanup, render, screen } from '@testing-library/svelte'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,6 +115,15 @@ describe('player bar', () => {
 		expect(
 			screen.getByRole('link', { name: 'Open on YouTube' })
 		).toHaveAttribute('href', song.url)
+		const appleMusicLink = screen.getByRole('link', {
+			name: 'Open on Apple Music',
+		})
+		expect(appleMusicLink).toHaveAttribute(
+			'href',
+			buildAppleMusicSearchUrl(song)
+		)
+		expect(appleMusicLink).toHaveAttribute('target', '_blank')
+		expect(appleMusicLink).toHaveAttribute('rel', 'noopener noreferrer')
 	})
 
 	it('toggles playback and expansion from the controls', async () => {

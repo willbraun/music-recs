@@ -104,14 +104,14 @@
 
 		{#if !isLoading && !errorMessage && songs.length > 0}
 			<div
-				class="hidden grid-cols-[3rem_2fr_1.5fr_1.5fr_4rem] gap-4 px-3 text-xs font-medium text-muted-foreground uppercase md:grid"
+				class="hidden grid-cols-[3rem_2fr_1.5fr_1.5fr_4rem_1.3rem] gap-4 px-3 text-xs font-medium text-muted-foreground uppercase md:grid"
 				aria-hidden="true"
 			>
 				<span></span>
 				<span>Title</span>
 				<span>Artist</span>
 				<span>Album</span>
-				<span class="text-right">Match</span>
+				<span>Match</span>
 			</div>
 		{/if}
 	</div>

@@ -89,6 +89,12 @@ Rules:
 - Payload types mirror the API exactly. The `Song` type is defined once and used by every component.
 - The client never calls MusicBrainz, Cover Art Archive, or YouTube image URLs for lookups. Artwork is resolved by the backend ([artwork.md](artwork.md)). The browser only loads image URLs it is given.
 
+## External links
+
+- YouTube links use the song's `url`.
+- Apple Music links are built in the UI by `buildAppleMusicSearchUrl` in `frontend/src/lib/links.ts`: `https://music.apple.com/us/search?term=` plus the URI-encoded `{artist} {title}`. Nothing is stored or looked up, so there are no Apple credentials, API calls, or database columns.
+- All external links open in a new tab with `rel="noopener noreferrer"`.
+
 ## Error handling
 
 - A `409` from `startRun` means no taste exists. The app clears its taste state and redirects to `/taste`, with no toast.

@@ -1,6 +1,12 @@
 <script lang="ts">
 	import type { Song } from '#lib/api.js'
+	import { buttonVariants } from '#lib/components/ui/button/index.js'
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js'
+	import { buildAppleMusicSearchUrl } from '#lib/links.js'
 	import { player } from '#lib/player.svelte.js'
+	import AppleIcon from '@lucide/svelte/icons/apple'
+	import Ellipsis from '@lucide/svelte/icons/ellipsis'
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
 	import MusicIcon from '@lucide/svelte/icons/music'
 
 	let { song, onplay }: { song: Song; onplay: (song: Song) => void } = $props()
@@ -25,58 +31,96 @@
 	let isCurrent = $derived(player.current?.video_id === song.video_id)
 </script>
 
-<button
-	type="button"
-	class="grid w-full cursor-pointer grid-cols-[3rem_1fr_auto] items-center gap-4 rounded-lg px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[3rem_2fr_1.5fr_1.5fr_4rem] {isCurrent
-		? 'bg-muted'
-		: ''}"
-	aria-label="Play {song.title} by {song.artist}"
-	aria-current={isCurrent || undefined}
-	onclick={() => onplay(song)}
->
-	<span
-		class="relative flex size-12 items-center justify-center overflow-hidden rounded-md {imageUrl
-			? ''
-			: 'bg-muted'}"
+<div class="relative rounded-lg hover:bg-muted {isCurrent ? 'bg-muted' : ''}">
+	<button
+		type="button"
+		class="grid w-full cursor-pointer grid-cols-[3rem_1fr_auto] items-center gap-4 rounded-lg py-2 pr-12 pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[3rem_2fr_1.5fr_1.5fr_4rem]"
+		aria-label="Play {song.title} by {song.artist}"
+		aria-current={isCurrent || undefined}
+		onclick={() => onplay(song)}
 	>
-		{#if imageUrl}
-			{#key imageUrl}
-				<img
-					src={imageUrl}
-					alt=""
-					loading="lazy"
-					class="absolute inset-0 size-full object-cover transition-opacity duration-300 motion-reduce:transition-none {isThumbnail
-						? THUMBNAIL_ZOOM
-						: ''} {loadedUrl === imageUrl ? 'opacity-100' : 'opacity-0'}"
-					onload={() => (loadedUrl = imageUrl ?? null)}
-					onerror={() => imageUrl && failedUrls.push(imageUrl)}
-				/>
-			{/key}
-		{:else}
-			<MusicIcon class="size-5 text-muted-foreground" aria-hidden="true" />
-		{/if}
-	</span>
-	<span class="min-w-0">
-		<span class="block text-sm font-medium break-all" title={song.title}
-			>{song.title}</span
+		<span
+			class="relative flex size-12 items-center justify-center overflow-hidden rounded-md {imageUrl
+				? ''
+				: 'bg-muted'}"
 		>
-		<span class="block text-sm break-all text-muted-foreground md:hidden"
+			{#if imageUrl}
+				{#key imageUrl}
+					<img
+						src={imageUrl}
+						alt=""
+						loading="lazy"
+						class="absolute inset-0 size-full object-cover transition-opacity duration-300 motion-reduce:transition-none {isThumbnail
+							? THUMBNAIL_ZOOM
+							: ''} {loadedUrl === imageUrl ? 'opacity-100' : 'opacity-0'}"
+						onload={() => (loadedUrl = imageUrl ?? null)}
+						onerror={() => imageUrl && failedUrls.push(imageUrl)}
+					/>
+				{/key}
+			{:else}
+				<MusicIcon class="size-5 text-muted-foreground" aria-hidden="true" />
+			{/if}
+		</span>
+		<span class="min-w-0">
+			<span class="block text-sm font-medium break-all" title={song.title}
+				>{song.title}</span
+			>
+			<span class="block text-sm break-all text-muted-foreground md:hidden"
+				>{song.artist}</span
+			>
+		</span>
+		<span class="hidden text-sm break-all text-muted-foreground md:block"
 			>{song.artist}</span
 		>
-	</span>
-	<span class="hidden text-sm break-all text-muted-foreground md:block"
-		>{song.artist}</span
-	>
-	<span class="hidden text-sm break-all text-muted-foreground md:block"
-		>{song.album ?? ''}</span
-	>
-	<span
-		class="text-right text-sm font-medium tabular-nums {song.recommended
-			? 'text-green-500'
-			: 'text-red-500'}"
-		title={song.recommended ? 'Recommended' : 'Not recommended'}
-		>{matchScore}<span class="sr-only"
-			>, {song.recommended ? 'recommended' : 'not recommended'}</span
-		></span
-	>
-</button>
+		<span class="hidden text-sm break-all text-muted-foreground md:block"
+			>{song.album ?? ''}</span
+		>
+		<span
+			class="text-sm font-medium tabular-nums {song.recommended
+				? 'text-green-500'
+				: 'text-red-500'}"
+			title={song.recommended ? 'Recommended' : 'Not recommended'}
+			>{matchScore}<span class="sr-only"
+				>, {song.recommended ? 'recommended' : 'not recommended'}</span
+			></span
+		>
+	</button>
+	<div class="absolute top-1/2 right-2 -translate-y-1/2">
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger
+				class={buttonVariants({ variant: 'ghost', size: 'icon' })}
+				aria-label="More options for {song.title}"
+			>
+				<Ellipsis aria-hidden="true" />
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="start" class="w-42">
+				<DropdownMenu.Item>
+					{#snippet child({ props })}
+						<a
+							{...props}
+							href={song.url}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<ExternalLinkIcon aria-hidden="true" />
+							YouTube
+						</a>
+					{/snippet}
+				</DropdownMenu.Item>
+				<DropdownMenu.Item>
+					{#snippet child({ props })}
+						<a
+							{...props}
+							href={buildAppleMusicSearchUrl(song)}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<AppleIcon aria-hidden="true" />
+							Apple Music
+						</a>
+					{/snippet}
+				</DropdownMenu.Item>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	</div>
+</div>

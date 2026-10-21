@@ -46,7 +46,7 @@ Fixed to the bottom, full width, about 72 px tall. Hidden until the first song i
 ```
 
 - A small square box (54 x 54 px) at the left. A YouTube thumbnail fallback is zoomed 4/3 so its letterbox bars are cropped and the square cover fills the box. Artwork covers the real iframe, which sits underneath, sized with CSS.
-- Title and artist, one line each, ellipsis. The title links to nothing; an "Open on YouTube" icon link is in the controls.
+- Title and artist, one line each, ellipsis. The title links to nothing; an "Open on YouTube" and an "Open on Apple Music" icon link are in the controls (new tab, `rel="noopener noreferrer"`; the Apple Music URL is built as in [frontend.md](frontend.md#external-links)).
 - Previous, play/pause, next buttons (shadcn-svelte `Button`, `variant="ghost"`, icon size).
 - A seek slider (shadcn-svelte `Slider`) with elapsed and total time. Dragging seeks on release.
 - A volume control: mute toggle with a slider that appears on hover or focus.

@@ -1,5 +1,6 @@
 import type { Song } from '#lib/api.js'
-import { cleanup, fireEvent, render } from '@testing-library/svelte'
+import { buildAppleMusicSearchUrl } from '#lib/links.js'
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('#lib/player.svelte.js', () => ({
@@ -8,7 +9,6 @@ vi.mock('#lib/player.svelte.js', () => ({
 	togglePlayback: vi.fn(),
 }))
 
-import LoadingSongCard from './LoadingSongCard.svelte'
 import SongCard from './SongCard.svelte'
 const ART = 'https://coverartarchive.org/release-group/rg/front-500'
 const THUMB = 'https://img.youtube.com/vi/abc/hqdefault.jpg'
@@ -28,6 +28,32 @@ function getImage(container: HTMLElement): HTMLImageElement | null {
 }
 
 afterEach(cleanup)
+
+describe('SongCard YouTube link', () => {
+	it('opens the song on YouTube in a new tab', () => {
+		render(SongCard, { song })
+
+		const link = screen.getByRole('link', {
+			name: 'Open Test Song on YouTube',
+		})
+		expect(link).toHaveAttribute('href', song.url)
+		expect(link).toHaveAttribute('target', '_blank')
+		expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+	})
+})
+
+describe('SongCard Apple Music link', () => {
+	it('opens an Apple Music search for the song in a new tab', () => {
+		render(SongCard, { song })
+
+		const link = screen.getByRole('link', {
+			name: 'Open Test Song on Apple Music',
+		})
+		expect(link).toHaveAttribute('href', buildAppleMusicSearchUrl(song))
+		expect(link).toHaveAttribute('target', '_blank')
+		expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+	})
+})
 
 describe('SongCard artwork', () => {
 	it('prefers the album art over the YouTube thumbnail', () => {
@@ -99,35 +125,5 @@ describe('SongCard artwork', () => {
 		})
 
 		expect(getByText('Kid A')).toBeInTheDocument()
-	})
-})
-
-describe('LoadingSongCard', () => {
-	it('shows the thumbnail', () => {
-		const { container } = render(LoadingSongCard, {
-			title: 'T',
-			artist: 'A',
-			thumbnailUrl: THUMB,
-		})
-
-		expect(getImage(container)).toHaveAttribute('src', THUMB)
-	})
-
-	it('shows only the spinner without a thumbnail or after it fails', async () => {
-		const withoutThumbnail = render(LoadingSongCard, {
-			title: 'T',
-			artist: 'A',
-		})
-		expect(getImage(withoutThumbnail.container)).toBeNull()
-		cleanup()
-
-		const { container } = render(LoadingSongCard, {
-			title: 'T',
-			artist: 'A',
-			thumbnailUrl: THUMB,
-		})
-		await fireEvent.error(getImage(container)!)
-
-		expect(getImage(container)).toBeNull()
 	})
 })

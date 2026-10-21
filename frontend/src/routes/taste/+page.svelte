@@ -36,5 +36,15 @@
 		</div>
 	{:else}
 		<TasteForm />
+		{#if taste.current}
+			<section class="flex flex-col gap-2">
+				<h2 class="text-lg font-medium">What the model sees</h2>
+				<p
+					class="rounded-lg border bg-muted/50 p-4 text-sm whitespace-pre-wrap"
+				>
+					{taste.current.text}
+				</p>
+			</section>
+		{/if}
 	{/if}
 </main>

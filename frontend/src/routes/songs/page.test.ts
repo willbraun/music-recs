@@ -1,4 +1,5 @@
 import type { Song } from '#lib/api.js'
+import { buildAppleMusicSearchUrl } from '#lib/links.js'
 import { cleanup, render, screen } from '@testing-library/svelte'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -74,6 +75,31 @@ describe('songs page', () => {
 		)
 
 		expect(playSongMock).toHaveBeenCalledWith(songs[1], songs, 'songs')
+	})
+
+	it('offers external links in the row menu without playing the song', async () => {
+		listSongsMock.mockResolvedValue(makePage(songs))
+		render(Page)
+
+		await userEvent.click(
+			await screen.findByRole('button', {
+				name: 'More options for First Song',
+			})
+		)
+
+		// jsdom never positions the popover, so it stays visibility:hidden and has no accessible name.
+		expect(
+			(await screen.findByText('YouTube')).closest('[role="menuitem"]')
+		).toHaveAttribute('href', songs[0].url)
+		const appleMusicItem = screen
+			.getByText('Apple Music')
+			.closest('[role="menuitem"]')
+		expect(appleMusicItem).toHaveAttribute(
+			'href',
+			buildAppleMusicSearchUrl(songs[0])
+		)
+		expect(appleMusicItem).toHaveAttribute('target', '_blank')
+		expect(playSongMock).not.toHaveBeenCalled()
 	})
 
 	it('shows an empty state', async () => {

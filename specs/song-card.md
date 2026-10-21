@@ -32,6 +32,7 @@ All new fields are nullable. See [artwork.md](artwork.md).
 - A play button overlays the image on hover and focus. Clicking the image or the button plays the song in the [player](player.md).
 - The card whose `video_id` is the player's current song shows an animated equalizer indicator and a highlighted border. A pause icon replaces the play icon while it is playing.
 - A secondary "Open on YouTube" icon link (`url`, new tab, `rel="noopener noreferrer"`) in the card's corner.
+- A secondary "Open on Apple Music" icon link beside it, with the same attributes. Its URL is built from `artist` and `title` ([frontend.md](frontend.md#external-links)). It is always shown.
 - The whole card is keyboard focusable through its play button.
 
 ## Artwork

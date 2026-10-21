@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
+	import { buildAppleMusicSearchUrl } from '#lib/links.js'
 	import {
 		attachPlayerHost,
 		detachPlayerHost,
@@ -13,6 +14,7 @@
 		toggleMute,
 		togglePlayback,
 	} from '#lib/player.svelte.js'
+	import AppleIcon from '@lucide/svelte/icons/apple'
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up'
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
@@ -265,6 +267,16 @@
 				aria-label="Open on YouTube"
 			>
 				<ExternalLinkIcon />
+			</a>
+			<a
+				class={buttonVariants({ variant: 'ghost', size: 'icon' })}
+				href={buildAppleMusicSearchUrl(player.current)}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Open on Apple Music"
+				title="Open on Apple Music"
+			>
+				<AppleIcon />
 			</a>
 		{/if}
 

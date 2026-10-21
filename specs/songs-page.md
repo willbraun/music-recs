@@ -12,6 +12,7 @@ Related: [frontend.md](frontend.md), [api.md](api.md), [song-card.md](song-card.
 - Loading: a grid of skeleton cards the same size as real cards. Changing filters keeps the old results visible and dimmed until the new ones arrive, to avoid flicker.
 - Empty state: "No songs match these filters." with a "Clear filters" button. When the cache has no songs at all: "No songs yet. Find some on the Home page." with a link home.
 - Clicking a card plays it with the page's current songs as the queue ([player.md](player.md#queue)).
+- Each song row ends with a 3-dot menu holding "YouTube" and "Apple Music" links. Opening the menu does not play the song.
 
 ## Filters
 
