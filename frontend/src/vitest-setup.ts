@@ -6,3 +6,6 @@ globalThis.ResizeObserver ??= class {
 	unobserve() {}
 	disconnect() {}
 }
+
+// jsdom lacks scrollIntoView, which the Bits UI command list calls.
+Element.prototype.scrollIntoView ??= () => {}

@@ -2,8 +2,9 @@
 	import { page } from '$app/state'
 
 	const NAV_LINKS = [
-		{ href: '/', label: 'Home' },
+		{ href: '/', label: 'Discover' },
 		{ href: '/songs', label: 'Songs' },
+		{ href: '/taste', label: 'Taste' },
 	]
 </script>
 

@@ -9,6 +9,7 @@
 	import { onDestroy, onMount } from 'svelte'
 	import type { LayoutProps } from './$types'
 	import './layout.css'
+	import TasteGate from './taste/TasteGate.svelte'
 
 	let { children }: LayoutProps = $props()
 
@@ -26,7 +27,9 @@
 <Header />
 
 <div class:pb-18={player.current}>
-	{@render children()}
+	<TasteGate>
+		{@render children()}
+	</TasteGate>
 </div>
 
 <Player />

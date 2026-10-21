@@ -7,12 +7,15 @@ const { startRunMock, openRunEventsMock, toastErrorMock } = vi.hoisted(() => ({
 	toastErrorMock: vi.fn(),
 }))
 
-vi.mock('#lib/api.js', () => ({
+vi.mock('#lib/api.js', async (importOriginal) => ({
+	ApiError: (await importOriginal<typeof import('#lib/api.js')>()).ApiError,
 	startRun: startRunMock,
 	openRunEvents: openRunEventsMock,
 }))
 vi.mock('svelte-sonner', () => ({ toast: { error: toastErrorMock } }))
 
+import { ApiError } from '#lib/api.js'
+import { taste } from '#lib/taste.svelte.js'
 import {
 	handleRunEvent,
 	resetRun,
@@ -111,6 +114,17 @@ describe('startNewRun', () => {
 		expect(run.error).toBe('Set your taste first')
 		expect(toastErrorMock).toHaveBeenCalledWith('Set your taste first')
 		expect(openRunEventsMock).not.toHaveBeenCalled()
+	})
+
+	it('clears the taste without a toast when no taste is saved', async () => {
+		taste.status = 'ready'
+		startRunMock.mockRejectedValue(new ApiError('Set your taste first', 409))
+
+		await startNewRun(3, 50)
+
+		expect(taste.status).toBe('none')
+		expect(run.phase).toBe('idle')
+		expect(toastErrorMock).not.toHaveBeenCalled()
 	})
 
 	it('ignores a start while a run is active', async () => {

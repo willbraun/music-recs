@@ -117,7 +117,7 @@ Route `/taste`, linked in the header as "Taste". The same page is the setup scre
 
 ### Genre combobox
 
-- shadcn-svelte Combobox with multiple selection. The popover has a search box and a scrollable list. Selected genres show as removable badges under the field.
+- shadcn-svelte Combobox with multiple selection. The popover has a search box and a scrollable list. Selected genres show as removable badges inside the field, which opens the popover when clicked.
 - Options come from a hardcoded list in `frontend/src/lib/genres.ts`, shared by the liked and disliked comboboxes. It is not fetched from MusicBrainz or any other service. Initial list: Alternative, Ambient, Bluegrass, Blues, Children's, Christian, Classic rock, Classical, Country, Dance, Disco, Drum and bass, Dubstep, Electronic, Emo, Folk, Funk, Gospel, Grunge, Hard rock, Heavy metal, Hip hop, House, Indie pop, Indie rock, Jazz, K-pop, Latin, Lo-fi, Melodic metal, Metal, New wave, Pop, Post-punk, Psychedelic, Punk, R&B, Reggae, Rock, Shoegaze, Singer-songwriter, Soul, Soundtrack, Synthpop, Techno, Trance, Trap, World.
 - Typing text that matches no option offers "Add {text}", so any genre can be entered. The server does not check genres against the list.
 - A genre selected in one field is disabled in the other, with the hint "In your likes" or "In your dislikes".
@@ -126,6 +126,7 @@ Route `/taste`, linked in the header as "Taste". The same page is the setup scre
 
 - A small `TagInput.svelte` built from `Badge` and `Input`, since shadcn-svelte has no tag input.
 - Enter adds the typed name as a chip. Commas are not separators, because names can contain them. Pasted text with newlines becomes one chip per line.
+- Chips render inside the field, before the text input, and clicking the field focuses the input.
 - Backspace in the empty field removes the last chip. Each chip has a remove button labeled "Remove {name}".
 - Adding a name already in the list, ignoring case, does nothing. Adding a name that is in the opposite list shows an inline message ("Already in your dislikes") and does not add it.
 - The field has a visible label. Chips are a list, and adds and removals are announced through an `aria-live="polite"` region.

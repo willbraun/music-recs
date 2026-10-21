@@ -57,17 +57,17 @@
 		{/if}
 	</span>
 	<span class="min-w-0">
-		<span class="block truncate text-sm font-medium" title={song.title}
+		<span class="block text-sm font-medium break-all" title={song.title}
 			>{song.title}</span
 		>
-		<span class="block truncate text-sm text-muted-foreground md:hidden"
+		<span class="block text-sm break-all text-muted-foreground md:hidden"
 			>{song.artist}</span
 		>
 	</span>
-	<span class="hidden truncate text-sm text-muted-foreground md:block"
+	<span class="hidden text-sm break-all text-muted-foreground md:block"
 		>{song.artist}</span
 	>
-	<span class="hidden truncate text-sm text-muted-foreground md:block"
+	<span class="hidden text-sm break-all text-muted-foreground md:block"
 		>{song.album ?? ''}</span
 	>
 	<span

@@ -1,4 +1,10 @@
-import { cleanup, render, screen } from '@testing-library/svelte'
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from '@testing-library/svelte'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,9 +72,14 @@ describe('home page', () => {
 		render(Page)
 		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
 		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('50%')
-		screen.getByRole('slider', { hidden: true }).focus()
-		await userEvent.keyboard('{ArrowRight}')
-		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('51%')
+		await fireEvent.keyDown(screen.getByRole('slider', { hidden: true }), {
+			key: 'ArrowRight',
+		})
+		await waitFor(() =>
+			expect(screen.getByLabelText('Exploration level')).toHaveTextContent(
+				'51%'
+			)
+		)
 		await userEvent.click(
 			screen.getByRole('button', { name: 'Find new music' })
 		)

@@ -1,5 +1,12 @@
-import { openRunEvents, startRun, type RunEvent, type Song } from '#lib/api.js'
+import {
+	ApiError,
+	openRunEvents,
+	startRun,
+	type RunEvent,
+	type Song,
+} from '#lib/api.js'
 import { appendToQueue } from '#lib/player.svelte.js'
+import { clearTaste } from '#lib/taste.svelte.js'
 import { toast } from 'svelte-sonner'
 
 export const RUN_QUEUE_ORIGIN = 'run'
@@ -162,6 +169,12 @@ export async function startNewRun(count: number, exploration: number) {
 		saveRunId(id)
 		listenToRun(id, false)
 	} catch (error) {
+		// No taste is saved, so the taste gate sends the user to /taste without a toast.
+		if (error instanceof ApiError && error.status === 409) {
+			resetRun()
+			clearTaste()
+			return
+		}
 		failRun(error instanceof Error ? error.message : 'Could not start the run')
 	}
 }

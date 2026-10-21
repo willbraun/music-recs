@@ -91,6 +91,38 @@ export async function listSongs(page = 1): Promise<SongPage> {
 	return response.json()
 }
 
+export interface TasteProfile {
+	liked_genres: string[]
+	liked_artists: string[]
+	disliked_genres: string[]
+	disliked_artists: string[]
+	notes: string
+}
+
+export interface Taste {
+	profile: TasteProfile
+	text: string
+	updated_at: string
+}
+
+export async function getTaste(): Promise<Taste | null> {
+	const response = await fetch('/api/taste')
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+export async function saveTaste(profile: TasteProfile): Promise<Taste> {
+	const response = await fetch('/api/taste', {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ profile }),
+	})
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
 export function openRunEvents(id: string): EventSource {
 	return new EventSource(`/api/runs/${encodeURIComponent(id)}/events`)
 }

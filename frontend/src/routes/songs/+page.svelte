@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { listSongs, type Song } from '#lib/api.js'
-	import SongRow from '#lib/components/SongRow.svelte'
 	import { Button } from '#lib/components/ui/button/index.js'
 	import { playSong } from '#lib/player.svelte.js'
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left'
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
 	import { onMount } from 'svelte'
+	import SongRow from './SongRow.svelte'
 
 	const SONGS_QUEUE_ORIGIN = 'songs'
 	const REVEAL_CLASS =

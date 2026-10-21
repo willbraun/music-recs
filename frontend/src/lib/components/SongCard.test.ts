@@ -10,7 +10,6 @@ vi.mock('#lib/player.svelte.js', () => ({
 
 import LoadingSongCard from './LoadingSongCard.svelte'
 import SongCard from './SongCard.svelte'
-
 const ART = 'https://coverartarchive.org/release-group/rg/front-500'
 const THUMB = 'https://img.youtube.com/vi/abc/hqdefault.jpg'
 
