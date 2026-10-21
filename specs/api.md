@@ -107,7 +107,7 @@ Query parameters:
 | Parameter     | Type    | Default  | Description                                                                                      |
 | ------------- | ------- | -------- | ------------------------------------------------------------------------------------------------ |
 | `page`        | integer | `1`      | 1-based, `>= 1`                                                                                  |
-| `page_size`   | integer | `24`     | `1` to `100`                                                                                     |
+| `page_size`   | integer | `50`     | `1` to `100`                                                                                     |
 | `recommended` | boolean | omitted  | `true` returns only recommended songs, `false` only not recommended, omitted returns all         |
 | `q`           | string  | omitted  | Case-insensitive substring match on `title`, `artist`, or `album`. Trimmed, 1 to 200 characters. |
 | `sort`        | enum    | `newest` | `newest` is `analyzed_at DESC, rowid DESC`. `oldest` is `analyzed_at ASC, rowid ASC`.            |
@@ -135,7 +135,7 @@ Response `200`:
 	],
 	"total": 128,
 	"page": 1,
-	"page_size": 24
+	"page_size": 50
 }
 ```
 

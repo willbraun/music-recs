@@ -9,7 +9,7 @@ from typing import Annotated, Iterator
 
 import uvicorn
 from appdb import AppDb
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pipeline import NO_TASTE_MESSAGE, run
@@ -18,6 +18,7 @@ from taste_profile import Taste, TasteProfile, normalize_taste
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 KEEPALIVE_SECONDS = 15
+DEFAULT_PAGE_SIZE = 50
 
 
 class RunRequest(BaseModel):
@@ -111,8 +112,14 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
 
 
 @app.get("/api/songs")
-def list_songs(request: Request) -> list[dict]:
-    return request.app.state.appdb.list_songs()
+def list_songs(
+    request: Request,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = DEFAULT_PAGE_SIZE,
+) -> dict:
+    appdb: AppDb = request.app.state.appdb
+    items = appdb.list_songs(limit=page_size, offset=(page - 1) * page_size)
+    return {"items": items, "total": appdb.count_songs(), "page": page, "page_size": page_size}
 
 
 def _serialize_taste(taste: Taste) -> dict:

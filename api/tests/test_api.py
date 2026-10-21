@@ -185,7 +185,7 @@ def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
     appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q")
     appdb.add_song("no", "No", "A", "u", False, 0.6, "q")
 
-    songs = {s["video_id"]: s for s in client.get("/api/songs").json()}
+    songs = {s["video_id"]: s for s in client.get("/api/songs").json()["items"]}
 
     assert {k: v["recommended"] for k, v in songs.items()} == {"yes": True, "no": False}
     assert songs["yes"]["confidence"] == 0.9
@@ -194,7 +194,26 @@ def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
 
 
 def test_list_songs_is_empty_for_a_new_database(client: TestClient) -> None:
-    assert client.get("/api/songs").json() == []
+    assert client.get("/api/songs").json() == {"items": [], "total": 0, "page": 1, "page_size": 50}
+
+
+def test_list_songs_paginates_by_fifty_newest_first(client: TestClient) -> None:
+    appdb: AppDb = api.app.state.appdb
+    for i in range(120):
+        appdb.add_song(f"v{i}", "T", "A", "u", True, 0.9, "q")
+
+    first = client.get("/api/songs").json()
+    last = client.get("/api/songs", params={"page": 3}).json()
+    beyond = client.get("/api/songs", params={"page": 4}).json()
+
+    assert (first["total"], len(first["items"]), first["items"][0]["video_id"]) == (120, 50, "v119")
+    assert (last["page"], [s["video_id"] for s in last["items"]][:1], len(last["items"])) == (3, ["v19"], 20)
+    assert beyond["items"] == []
+
+
+@pytest.mark.parametrize("params", [{"page": 0}, {"page_size": 0}, {"page_size": 101}, {"page": "x"}])
+def test_list_songs_rejects_invalid_parameters(client: TestClient, params: dict) -> None:
+    assert client.get("/api/songs", params=params).status_code == 422
 
 
 def test_get_taste_is_null_when_none_is_saved(client: TestClient) -> None:

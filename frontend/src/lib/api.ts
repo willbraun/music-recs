@@ -77,8 +77,15 @@ export async function startRun(
 	return response.json()
 }
 
-export async function listSongs(): Promise<Song[]> {
-	const response = await fetch('/api/songs')
+export interface SongPage {
+	items: Song[]
+	total: number
+	page: number
+	page_size: number
+}
+
+export async function listSongs(page = 1): Promise<SongPage> {
+	const response = await fetch(`/api/songs?page=${page}`)
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
 	return response.json()

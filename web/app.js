@@ -62,8 +62,8 @@ async function loadHistory() {
 	try {
 		const res = await fetch(`${API_BASE}/api/songs`)
 		if (!res.ok) throw new Error(`Request failed (${res.status})`)
-		const songs = await res.json()
-		setStatus(historyStatusEl, songs.length ? `${songs.length} analyzed songs` : 'No songs analyzed yet.')
+		const { items: songs, total } = await res.json()
+		setStatus(historyStatusEl, songs.length ? `${total} analyzed songs` : 'No songs analyzed yet.')
 		historyListEl.replaceChildren(
 			...songs.map(song => {
 				const taste = song.taste_version == null ? null : `taste v${song.taste_version}`

@@ -32,7 +32,7 @@ The URL is the source of truth: the page reads from it and filter controls updat
 
 ## Pagination
 
-- Page size is 24, fixed in the UI.
+- Page size is 50, fixed in the UI.
 - shadcn-svelte `Pagination` with previous, next, and page numbers (with ellipsis for long ranges).
 - A page past the last one (for example after songs are removed) redirects to the last page. Invalid `page` values are treated as 1.
 - Changing page scrolls the content area to the top.

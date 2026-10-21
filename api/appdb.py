@@ -100,12 +100,18 @@ class AppDb:
                 ),
             )
 
-    def list_songs(self) -> list[dict]:
+    def count_songs(self) -> int:
+        with connect(self._path) as conn:
+            return conn.execute("SELECT COUNT(*) FROM songs").fetchone()[0]
+
+    def list_songs(self, limit: int = -1, offset: int = 0) -> list[dict]:
+        """Newest first. A negative `limit` (SQLite's LIMIT -1) means no limit."""
         with connect(self._path) as conn:
             rows = conn.execute(
                 "SELECT video_id, title, artist, url, verdict, confidence, analyzed_at, query, thumbnail_url, "
                 "album_art_url, album, musicbrainz_recording_id, musicbrainz_release_group_id "
-                "FROM songs ORDER BY analyzed_at DESC, rowid DESC"
+                "FROM songs ORDER BY analyzed_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
             songs = [dict(row) for row in rows]
         for song in songs:
