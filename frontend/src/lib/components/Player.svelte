@@ -1,7 +1,13 @@
 <script lang="ts">
+	import AppleIcon from '#lib/components/icons/Apple.svelte'
+	import SpotifyIcon from '#lib/components/icons/Spotify.svelte'
+	import YouTubeIcon from '#lib/components/icons/YouTube.svelte'
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
-	import { buildAppleMusicSearchUrl } from '#lib/links.js'
+	import {
+		buildAppleMusicSearchUrl,
+		buildSpotifySearchUrl,
+	} from '#lib/links.js'
 	import {
 		attachPlayerHost,
 		detachPlayerHost,
@@ -14,10 +20,8 @@
 		toggleMute,
 		togglePlayback,
 	} from '#lib/player.svelte.js'
-	import AppleIcon from '@lucide/svelte/icons/apple'
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up'
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle'
 	import MusicIcon from '@lucide/svelte/icons/music'
 	import PauseIcon from '@lucide/svelte/icons/pause'
@@ -120,14 +124,6 @@
 				</p>
 				<p class="truncate text-sm text-muted-foreground">{subtitle}</p>
 			</div>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label="Collapse player"
-				onclick={toggleExpanded}
-			>
-				<ChevronDownIcon />
-			</Button>
 		</div>
 	{/if}
 
@@ -266,7 +262,7 @@
 				rel="noopener noreferrer"
 				aria-label="Open on YouTube"
 			>
-				<ExternalLinkIcon />
+				<YouTubeIcon class="size-5 fill-current" />
 			</a>
 			<a
 				class={buttonVariants({ variant: 'ghost', size: 'icon' })}
@@ -276,19 +272,28 @@
 				aria-label="Open on Apple Music"
 				title="Open on Apple Music"
 			>
-				<AppleIcon />
+				<AppleIcon class="size-5 fill-current" />
+			</a>
+			<a
+				class={buttonVariants({ variant: 'ghost', size: 'icon' })}
+				href={buildSpotifySearchUrl(player.current)}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Open on Spotify"
+				title="Open on Spotify"
+			>
+				<SpotifyIcon class="size-5 fill-current" />
 			</a>
 		{/if}
 
-		{#if !player.expanded}
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label="Expand player"
-				onclick={toggleExpanded}
-			>
-				<ChevronUpIcon />
-			</Button>
-		{/if}
+		<!-- Same spot in both states so the user can toggle without moving the mouse. -->
+		<Button
+			variant="ghost"
+			size="icon"
+			aria-label={player.expanded ? 'Collapse player' : 'Expand player'}
+			onclick={toggleExpanded}
+		>
+			{#if player.expanded}<ChevronDownIcon />{:else}<ChevronUpIcon />{/if}
+		</Button>
 	</div>
 </div>

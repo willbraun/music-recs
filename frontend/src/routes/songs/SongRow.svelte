@@ -1,13 +1,18 @@
 <script lang="ts">
 	import type { Song } from '#lib/api.js'
+	import AppleIcon from '#lib/components/icons/Apple.svelte'
+	import SpotifyIcon from '#lib/components/icons/Spotify.svelte'
+	import YouTubeIcon from '#lib/components/icons/YouTube.svelte'
 	import { buttonVariants } from '#lib/components/ui/button/index.js'
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js'
-	import { buildAppleMusicSearchUrl } from '#lib/links.js'
+	import {
+		buildAppleMusicSearchUrl,
+		buildSpotifySearchUrl,
+	} from '#lib/links.js'
 	import { player } from '#lib/player.svelte.js'
-	import AppleIcon from '@lucide/svelte/icons/apple'
 	import Ellipsis from '@lucide/svelte/icons/ellipsis'
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
 	import MusicIcon from '@lucide/svelte/icons/music'
+	import { cn } from 'cn'
 
 	let { song, onplay }: { song: Song; onplay: (song: Song) => void } = $props()
 
@@ -88,7 +93,10 @@
 	<div class="absolute top-1/2 right-2 -translate-y-1/2">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger
-				class={buttonVariants({ variant: 'ghost', size: 'icon' })}
+				class={cn(
+					buttonVariants({ variant: 'ghost', size: 'icon' }),
+					'hover:brightness-150'
+				)}
 				aria-label="More options for {song.title}"
 			>
 				<Ellipsis aria-hidden="true" />
@@ -102,7 +110,7 @@
 							target="_blank"
 							rel="noopener noreferrer"
 						>
-							<ExternalLinkIcon aria-hidden="true" />
+							<YouTubeIcon class="size-5" />
 							YouTube
 						</a>
 					{/snippet}
@@ -115,8 +123,21 @@
 							target="_blank"
 							rel="noopener noreferrer"
 						>
-							<AppleIcon aria-hidden="true" />
+							<AppleIcon class="size-5" />
 							Apple Music
+						</a>
+					{/snippet}
+				</DropdownMenu.Item>
+				<DropdownMenu.Item>
+					{#snippet child({ props })}
+						<a
+							{...props}
+							href={buildSpotifySearchUrl(song)}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<SpotifyIcon class="size-5" />
+							Spotify
 						</a>
 					{/snippet}
 				</DropdownMenu.Item>

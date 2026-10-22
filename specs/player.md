@@ -55,7 +55,7 @@ Fixed to the bottom, full width, about 72 px tall. Hidden until the first song i
 
 ## Expanded view
 
-- Toggled by the expand button, the collapse button, or the Escape key when the bar has focus.
+- Toggled by the expand/collapse button or the Escape key when the bar has focus. The button stays in the same spot (end of the control row) in both states, with the chevron flipped, so the user can toggle without moving the mouse.
 - The bar grows upward into a panel that shows the video large, 16:9, capped to the available height, with the same controls under it and the title and artist above.
 - The panel sits over the page content (not pushing it) with a dimmed backdrop on the page. Clicking the backdrop collapses it.
 - The same iframe element is resized between the two layouts (CSS transition on size and position). It is not re-created.

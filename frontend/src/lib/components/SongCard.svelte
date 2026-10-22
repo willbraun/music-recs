@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { Song } from '#lib/api.js'
+	import AppleIcon from '#lib/components/icons/Apple.svelte'
+	import SpotifyIcon from '#lib/components/icons/Spotify.svelte'
+	import YouTubeIcon from '#lib/components/icons/YouTube.svelte'
 	import { Badge } from '#lib/components/ui/badge/index.js'
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js'
-	import { buildAppleMusicSearchUrl } from '#lib/links.js'
+	import {
+		buildAppleMusicSearchUrl,
+		buildSpotifySearchUrl,
+	} from '#lib/links.js'
 	import { player, playSong, togglePlayback } from '#lib/player.svelte.js'
-	import AppleIcon from '@lucide/svelte/icons/apple'
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
 	import MusicIcon from '@lucide/svelte/icons/music'
 	import PauseIcon from '@lucide/svelte/icons/pause'
 	import PlayIcon from '@lucide/svelte/icons/play'
@@ -96,7 +100,7 @@
 				aria-label="Open {song.title} on YouTube"
 				title="Open on YouTube"
 			>
-				<ExternalLinkIcon class="size-4" aria-hidden="true" />
+				<YouTubeIcon class="size-5" />
 			</a>
 			<a
 				class="flex size-8 items-center justify-center rounded-md bg-black/60 text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -106,7 +110,17 @@
 				aria-label="Open {song.title} on Apple Music"
 				title="Open on Apple Music"
 			>
-				<AppleIcon class="size-4" aria-hidden="true" />
+				<AppleIcon class="size-5" />
+			</a>
+			<a
+				class="flex size-8 items-center justify-center rounded-md bg-black/60 text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				href={buildSpotifySearchUrl(song)}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Open {song.title} on Spotify"
+				title="Open on Spotify"
+			>
+				<SpotifyIcon class="size-5" />
 			</a>
 		</div>
 		<Badge class="absolute bottom-2 left-2" variant="secondary"
