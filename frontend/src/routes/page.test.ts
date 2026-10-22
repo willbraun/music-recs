@@ -52,7 +52,7 @@ describe('home page', () => {
 			screen.getByRole('heading', { name: 'Discover something new' })
 		).toBeInTheDocument()
 		expect(
-			screen.getByText("Based on your taste, I'll find music you might like.")
+			screen.getByText("Based on your taste, I'll find music you might like")
 		).toBeInTheDocument()
 	})
 

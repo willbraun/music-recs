@@ -64,7 +64,7 @@
 				Discover something new
 			</h1>
 			<p class="text-muted-foreground">
-				Based on your taste, I'll find music you might like.
+				Based on your taste, I'll find music you might like
 			</p>
 		</div>
 

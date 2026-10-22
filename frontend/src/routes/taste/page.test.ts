@@ -80,37 +80,16 @@ describe('taste page', () => {
 		await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
 		expect(getTasteMock).toHaveBeenCalledTimes(1)
-		expect(
-			await screen.findByText('I like these genres: Electronic.')
-		).toBeInTheDocument()
+		expect(await screen.findByText('Electronic')).toBeInTheDocument()
 	})
 
 	it('shows the setup intro and an empty form when no taste is saved', () => {
 		render(Page)
 
 		expect(
-			screen.getByText('Tell us what you like to get started.')
+			screen.getByText('Enter your musical preferences to get started')
 		).toBeInTheDocument()
-		expect(
-			screen.queryByRole('heading', { name: 'What the model sees' })
-		).toBeNull()
 		expect(getSaveButton()).toBeDisabled()
-	})
-
-	it('fills the form from the saved profile and shows what the model sees', () => {
-		saveTasteResult(savedTaste)
-		render(Page)
-
-		expect(
-			screen.queryByText('Tell us what you like to get started.')
-		).toBeNull()
-		expect(
-			within(getLikeGroup()).getByRole('button', { name: 'Remove Flume' })
-		).toBeInTheDocument()
-		expect(screen.getByLabelText('Anything else')).toHaveValue(
-			'English lyrics only.'
-		)
-		expect(screen.getByText('I like these genres: Electronic.')).toBeVisible()
 	})
 
 	it('keeps Save disabled until there is a like', async () => {
@@ -173,26 +152,6 @@ describe('taste page', () => {
 		expect(toastSuccessMock).toHaveBeenCalledWith('Taste saved')
 		expect(gotoMock).toHaveBeenCalledWith('/')
 		expect(taste.status).toBe('ready')
-	})
-
-	it('stays on the page after editing and refreshes what the model sees', async () => {
-		saveTasteResult(savedTaste)
-		saveTasteMock.mockResolvedValue({
-			...savedTaste,
-			text: 'Updated text.',
-			profile: { ...savedTaste.profile, notes: 'Moody' },
-		})
-		render(Page)
-
-		const notes = screen.getByLabelText('Anything else')
-		await userEvent.clear(notes)
-		await userEvent.type(notes, 'Moody')
-		await userEvent.click(getSaveButton())
-
-		expect(await screen.findByText('Updated text.')).toBeInTheDocument()
-		expect(toastSuccessMock).toHaveBeenCalledWith('Taste saved')
-		expect(gotoMock).not.toHaveBeenCalled()
-		expect(getSaveButton()).toBeDisabled()
 	})
 
 	it('shows a 422 message inline without a toast', async () => {

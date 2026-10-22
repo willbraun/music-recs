@@ -13,7 +13,9 @@
 	<div class="flex flex-col gap-2">
 		<h1 class="text-3xl font-semibold tracking-tight">Your taste</h1>
 		{#if taste.status === 'none'}
-			<p class="text-muted-foreground">Tell us what you like to get started.</p>
+			<p class="text-muted-foreground">
+				Enter your musical preferences to get started
+			</p>
 		{/if}
 	</div>
 
