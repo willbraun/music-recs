@@ -20,19 +20,6 @@ def test_pick_guidance_by_exploration_level(exploration: int, expected: str) -> 
     assert analyze._pick_guidance(exploration) == expected
 
 
-def test_apply_rotary_time_emb_rotates_leading_dims_and_keeps_dtype(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(analyze.modeling_musicflamingo, "rotate_half", lambda x: -x)
-    hidden = torch.ones(1, 1, 4, dtype=torch.bfloat16)
-    cos = torch.full((1, 1, 2), 2.0)
-    sin = torch.full((1, 1, 2), 0.5)
-
-    result = analyze.apply_rotary_time_emb(hidden, cos, sin)
-
-    assert result.dtype == torch.bfloat16
-    # Rotated dims: 1*2 + (-1)*0.5 = 1.5; the remaining dims pass through.
-    assert result.tolist() == [[[1.5, 1.5, 1.0, 1.0]]]
-
-
 class _FakeInputs(dict):
     def to(self, _device):
         return self
@@ -55,8 +42,9 @@ class _FakeModel:
         self._logits = torch.zeros(1, 1, 10)
         self._logits[0, -1, 1] = yes_logit
         self._logits[0, -1, 2] = no_logit
+        self.thinker = self._run_thinker
 
-    def __call__(self, **_inputs):
+    def _run_thinker(self, **_inputs):
         return type("Output", (), {"logits": self._logits})()
 
 
