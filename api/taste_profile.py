@@ -44,6 +44,7 @@ def _normalize_items(items: list[str], label: str) -> list[str]:
 
 
 def render_taste(profile: TasteProfile) -> str:
+    # The frontend never renders this text, so there is one implementation. Sentences with empty lists are omitted.
     sentences = [
         ("I like these genres: ", profile.liked_genres),
         ("My favorite artists are ", profile.liked_artists),
@@ -58,6 +59,7 @@ def render_taste(profile: TasteProfile) -> str:
 
 def normalize_taste(profile: TasteProfile) -> TasteProfile:
     """Return the cleaned profile, or raise ValueError with the first rule that failed."""
+    # Items are trimmed and deduplicated ignoring case, keeping the first spelling; notes become one paragraph.
     normalized = TasteProfile(
         liked_genres=_normalize_items(profile.liked_genres, "liked genre"),
         liked_artists=_normalize_items(profile.liked_artists, "liked artist"),
@@ -79,6 +81,7 @@ def normalize_taste(profile: TasteProfile) -> TasteProfile:
 
     if not normalized.liked_genres and not normalized.liked_artists:
         raise ValueError("Add at least one liked genre or artist")
+    # Keeps the audio model's prompt small.
     if len(render_taste(normalized)) > MAX_TEXT_CHARS:
         raise ValueError(f"Your taste is too long. Keep it under {MAX_TEXT_CHARS} characters in total")
     return normalized

@@ -26,6 +26,7 @@
 	let search = $state('')
 	let status = $state('')
 
+	// GENRES is only a suggestion list; any custom genre can be added and the server does not check it.
 	const options = $derived([
 		...GENRES,
 		...selected.filter((genre) => !hasItem(GENRES, genre)),

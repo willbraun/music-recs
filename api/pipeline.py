@@ -11,6 +11,7 @@ from fetch import OVERFETCH, Song, fetch_songs
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
 MAX_SEARCH_RESULTS_PER_QUERY = 300
+# A lead artist with this many songs among the last WINDOW recommended is avoided: queries steer away, their songs go last.
 FREQUENT_ARTIST_RECOMMENDATIONS = 3
 FREQUENT_ARTIST_WINDOW = 100
 NO_TASTE_MESSAGE = "Set your taste first"

@@ -19,16 +19,30 @@ The application consists of:
 
 The frontend should provide a responsive, polished interface for discovering recommendations, browsing songs, and listening to music.
 
+## Where Things Live
+
+The code and its comments are the only source of truth. Start from these files:
+
+- **API contract:** `api/api.py` (endpoints, request validation, error codes, run event stream).
+- **Run pipeline and event shapes:** `api/pipeline.py`.
+- **Schema and persistence:** `api/migrations/` and `api/appdb.py`.
+- **Taste rules and rendering:** `api/taste_profile.py`.
+- **Artwork lookup:** `api/artwork.py`.
+- **Frontend API client and payload types:** `frontend/src/lib/api.ts`.
+- **Frontend shared state (survives navigation):** `frontend/src/lib/*.svelte.ts` (`player`, `run`, `taste`).
+- **Routes:** `frontend/src/routes/` (`/` Home, `/songs`, `/taste`).
+
+Development runs the API on `127.0.0.1:8000` and the Vite dev server on `localhost:5173`, which proxies `/api`. `start.sh` starts both. The API does not serve the frontend.
+
 ## Source of Truth
 
 Follow these sources in order of precedence:
 
-1. **Feature specifications:** Files in `specs/` define the intended behavior and acceptance criteria.
+1. **The code and its comments:** Existing behavior, data contracts, and rationale are defined by the implementation, its tests, and the comments next to it.
 2. **Project instructions:** This file defines architectural conventions and implementation constraints.
-3. **Existing backend contracts:** The Python API and SQLite schema define existing integration boundaries unless a spec explicitly requires changes.
-4. **Legacy frontend:** Existing HTML, CSS, and JavaScript are reference material for appearance and existing user flows only. They are not the source of truth for the new implementation.
+3. **The user's request:** A task may deliberately change existing behavior. Confirm before changing API contracts, the database schema, or user-visible behavior beyond what was asked.
 
-If requirements conflict or a specification is ambiguous, identify the conflict before making assumptions that affect architecture, data contracts, or user-visible behavior.
+If the code, its comments, and the request conflict or are ambiguous, identify the conflict before making assumptions that affect architecture, data contracts, or user-visible behavior.
 
 ## General Development Principles
 
@@ -50,7 +64,7 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 - Extract shared components when doing so improves consistency or maintainability.
 - Separate UI presentation, application logic, and API communication where appropriate.
 - Use SvelteKit routing conventions rather than adding a separate router without an explicit need.
-- Keep frontend code compatible with the intended deployment model. Do not introduce server-side dependencies or browser-only assumptions without considering where the code executes.
+- Keep frontend code compatible with the intended deployment model: a client-only SPA (`ssr = false`) that talks to the Python API through relative `/api` URLs. Do not introduce server-side dependencies or browser-only assumptions without considering where the code executes.
 - Avoid duplicating business logic that already belongs in the Python backend.
 - If there are problems in the editor with Svelte files, feel free to restart the Svelte Language server to resolve them.
 
@@ -67,14 +81,13 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 
 ## UI and UX
 
-- Use the legacy frontend and screenshots as visual references, not implementation templates.
-- Follow the design specifications in `specs/`.
+- Reuse the existing components and styling (shadcn-svelte and Tailwind) rather than introducing new visual patterns.
 - Maintain consistent spacing, typography, colors, component behavior, and interaction patterns.
 - Make the interface responsive to different screen sizes.
 - Provide clear feedback for loading operations, failures, and user actions.
 - Avoid unnecessary navigation, dialogs, animations, or visual complexity.
 - Ensure interactive elements have appropriate accessible labels, keyboard support, and focus states.
-- Preserve existing functionality only when it is required by the specifications or explicitly requested.
+- Preserve existing functionality unless a change is explicitly requested.
 
 ## Code Quality
 
@@ -89,7 +102,7 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 
 ## Testing and Validation
 
-- Review relevant specifications and existing tests before making changes.
+- Read the relevant code, comments, and existing tests before making changes.
 - Implement frontend unit tests using Vitest and Svelte Testing Library.
 - Add or update tests for new behavior and bug fixes where practical.
 - Test important success, failure, empty, and loading states.
@@ -98,24 +111,15 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 - Do not claim that tests passed unless they were actually executed successfully.
 - Report any checks that could not be run.
 
-## Working with Specifications
+## Working with the Code as the Source of Truth
 
-- Read the relevant specification before implementing a feature.
-- Treat acceptance criteria as requirements, not optional suggestions.
+- Read the code that owns a behavior before changing it, including its comments and tests.
 - If a task is too large, break it into small, independently verifiable steps.
 - If implementation reveals missing requirements, document the ambiguity and propose a resolution.
-- Update specifications when explicitly requested or when an agreed behavior changes.
-- When there are database updates, update the specs/database.md and ensure any relevant migration scripts or cache handling logic are also reviewed and updated accordingly. Schema changes are a new timestamped file (`YYYYMMDDHHMMSS_name.sql`) in `api/migrations/`; never edit a migration that has been applied.
+- When behavior, a contract, or a rule changes, update the nearby comments and tests in the same change so they do not go stale.
+- Comments state only what the code cannot show, such as rationale, constraints, and contracts. Keep them to one short line.
+- When there are database updates, review the relevant migration scripts and `AppDb` methods. Schema changes are a new timestamped file (`YYYYMMDDHHMMSS_name.sql`) in `api/migrations/`; never edit a migration that has been applied.
 - Do not silently change the intended product behavior to make implementation easier.
-
-## Legacy Frontend Migration
-
-- Do not mechanically translate the existing HTML, CSS, and JavaScript into Svelte components.
-- Reimplement behavior using SvelteKit conventions and the feature specifications.
-- Reuse visual assets, styling ideas, and design decisions when appropriate.
-- Avoid carrying over legacy workarounds, unnecessary complexity, or direct DOM manipulation.
-- Keep the legacy implementation unchanged unless explicitly asked to modify it.
-- Do not delete legacy files until the replacement has been validated and their removal has been approved.
 
 ## Git and Change Management
 
@@ -129,7 +133,7 @@ If requirements conflict or a specification is ambiguous, identify the conflict 
 
 A task is complete when:
 
-- The implementation matches the relevant specification.
+- The implementation does what was requested and is consistent with the surrounding code and its comments.
 - The code follows the project's architectural conventions.
 - Relevant tests and checks have been run.
 - Existing backend integration contracts remain intact unless explicitly changed.

@@ -7,6 +7,7 @@ export interface PlayerState {
 	current: Song | null
 	queue: Song[]
 	index: number
+	// Which list the queue was built from, so late additions only join the matching queue.
 	queueOrigin: string | null
 	status: PlayerStatus
 	position: number
@@ -57,6 +58,7 @@ const VOLUME_KEY = 'music-recs:volume'
 const MUTED_KEY = 'music-recs:muted'
 const DEFAULT_VOLUME = 80
 const POLL_INTERVAL_MS = 250
+// Previous restarts the current song once it has played longer than this.
 const RESTART_THRESHOLD_SECONDS = 3
 
 function readStoredVolume(): number {
@@ -127,6 +129,7 @@ function loadYouTubeApi(): Promise<YouTubeApi> {
 }
 
 function createInstance(): Promise<YouTubePlayer> {
+	// One player for the whole app; moving or recreating the iframe reloads it and stops playback.
 	instancePromise ??= loadYouTubeApi()
 		.then(
 			(api) =>
@@ -188,6 +191,7 @@ function syncProgress() {
 }
 
 function updateMediaSession(song: Song) {
+	// Lets hardware media keys and OS controls drive the player.
 	if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
 	const artwork = song.album_art_url ?? song.thumbnail_url
 	navigator.mediaSession.metadata = new MediaMetadata({
@@ -274,6 +278,7 @@ function handleStateChange(event: { data: number }) {
 function handleError(event: { data: number }) {
 	stopPolling()
 	const song = player.current
+	// 101 and 150 mean the owner disabled embedding; 2, 5 and 100 are invalid, player error, or removed video.
 	const isEmbedBlocked = event.data === 101 || event.data === 150
 	const message = isEmbedBlocked
 		? "This video can't be embedded"
@@ -300,6 +305,7 @@ function handleError(event: { data: number }) {
 }
 
 export function playSong(song: Song, queue: Song[] = [song], origin?: string) {
+	// The queue is a snapshot: later filter or page changes do not alter it.
 	const index = queue.findIndex((item) => item.video_id === song.video_id)
 	player.queue = index === -1 ? [song] : [...queue]
 	player.queueOrigin = origin ?? null

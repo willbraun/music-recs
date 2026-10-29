@@ -1,5 +1,6 @@
 import type { Song } from '#lib/api.js'
 
+// Search links are built from artist and title only; nothing is looked up or stored.
 const APPLE_MUSIC_SEARCH_URL = 'https://music.apple.com/us/search'
 const SPOTIFY_SEARCH_URL = 'https://open.spotify.com/search'
 

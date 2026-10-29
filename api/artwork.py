@@ -137,7 +137,10 @@ def find_recording(artist: str, title: str) -> tuple[dict, dict] | None:
 
 
 def find_artwork(video_id: str, artist: str, title: str) -> SongArtwork:
-    """Look up the album art for a song; any failure leaves only the YouTube thumbnail."""
+    """Look up the album art for a song; any failure leaves only the YouTube thumbnail.
+
+    Done here, not in the browser, so one process enforces MusicBrainz's rate limit and results are stored once.
+    """
     thumbnail = SongArtwork(get_thumbnail_url(video_id))
     try:
         match = find_recording(artist, title)

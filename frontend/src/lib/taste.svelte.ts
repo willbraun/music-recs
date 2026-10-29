@@ -1,5 +1,6 @@
 import { getTaste, type Taste } from '#lib/api.js'
 
+// 'none' means no taste is saved; TasteGate then redirects every route except /taste to /taste.
 export type TasteStatus = 'loading' | 'none' | 'ready' | 'error'
 
 export interface TasteState {

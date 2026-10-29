@@ -20,7 +20,10 @@ def _load_migrations(directory: Path) -> list[tuple[int, Path]]:
 
 
 def apply_migrations(conn: sqlite3.Connection, directory: Path = MIGRATIONS_DIR) -> None:
-    """Run each migration not yet recorded in `schema_migrations`, one transaction per file."""
+    """Run each migration not yet recorded in `schema_migrations`, one transaction per file.
+
+    Never edit an applied migration; add a new timestamped file. Files must not contain BEGIN or COMMIT.
+    """
     migrations = _load_migrations(directory)
 
     # WAL lets API reads proceed while the pipeline writes songs; it persists in the file.

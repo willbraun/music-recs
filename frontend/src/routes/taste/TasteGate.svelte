@@ -12,6 +12,7 @@
 	const isTastePage = $derived(page.url.pathname === TASTE_PATH)
 
 	$effect(() => {
+		// Every page needs a taste, so check once here. replaceState keeps Back from returning to a gated page.
 		if (taste.status === 'none' && !isTastePage)
 			void goto(TASTE_PATH, { replaceState: true })
 	})

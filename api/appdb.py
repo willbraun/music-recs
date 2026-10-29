@@ -21,6 +21,7 @@ class AppDb:
             apply_migrations(conn)
 
     def get_current_taste(self) -> Taste | None:
+        # Only the profile fields are stored; Taste.text is rendered on read so the two cannot disagree.
         with connect(self._path) as conn:
             row = conn.execute("SELECT profile, updated_at FROM taste WHERE id = 1").fetchone()
         if row is None:
@@ -38,6 +39,7 @@ class AppDb:
         return Taste(profile, row["updated_at"])
 
     def get_seen_ids(self) -> set[str]:
+        # Every analyzed song is stored, recommended or not, so searches skip by video_id alone.
         with connect(self._path) as conn:
             return {row["video_id"] for row in conn.execute("SELECT video_id FROM songs")}
 
@@ -71,7 +73,7 @@ class AppDb:
         musicbrainz_recording_id: str | None = None,
         musicbrainz_release_group_id: str | None = None,
     ) -> None:
-        # An upsert, not INSERT OR REPLACE, which deletes the row first.
+        # An upsert, not INSERT OR REPLACE, which deletes the row first. Re-adding resets analyzed_at.
         with connect(self._path) as conn:
             conn.execute(
                 "INSERT INTO songs (video_id, title, artist, url, verdict, confidence, query, thumbnail_url, "
@@ -114,6 +116,7 @@ class AppDb:
                 (limit, offset),
             )
             songs = [dict(row) for row in rows]
+        # The column is `verdict`; the API calls it `recommended`.
         for song in songs:
             song["recommended"] = bool(song.pop("verdict"))
         return songs

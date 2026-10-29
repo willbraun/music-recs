@@ -9,8 +9,10 @@ import { appendToQueue } from '#lib/player.svelte.js'
 import { clearTaste } from '#lib/taste.svelte.js'
 import { toast } from 'svelte-sonner'
 
+// Tags the player queue built from this run's recommendations.
 export const RUN_QUEUE_ORIGIN = 'run'
 
+// preparing: requested, nothing recommended yet. streaming: at least one recommendation has arrived.
 export type RunPhase = 'idle' | 'preparing' | 'streaming' | 'done' | 'error'
 
 export type RunCard =
@@ -33,6 +35,7 @@ export interface RunState {
 	error: string | null
 }
 
+// Kept in sessionStorage so a reload can reattach; the server replays every event for a known run id.
 const RUN_ID_KEY = 'music-recs:run-id'
 
 function createInitialState(): RunState {
@@ -117,6 +120,7 @@ export function handleRunEvent(event: RunEvent) {
 				appendToQueue([event], RUN_QUEUE_ORIGIN)
 				if (run.phase === 'preparing') run.phase = 'streaming'
 			} else if (index !== -1) {
+				// Not-recommended songs are not shown here; they only appear on the Songs page.
 				run.cards.splice(index, 1)
 			}
 			run.status = `Found ${run.recommended} of ${run.count}`

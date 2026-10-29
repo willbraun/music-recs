@@ -4,19 +4,18 @@ import threading
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Annotated, Iterator
 
 import uvicorn
 from appdb import AppDb
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pipeline import NO_TASTE_MESSAGE, run
 from pydantic import BaseModel, Field, StringConstraints
 from taste_profile import Taste, TasteProfile, normalize_taste
 
-WEB_DIR = Path(__file__).parent.parent / "web"
+# The API only serves /api on 127.0.0.1 with no authentication; the frontend runs separately and proxies /api here.
+# Errors are {"detail": ...}: a string for 404, 409 and the taste 422, FastAPI's list of objects for other 422s.
 KEEPALIVE_SECONDS = 15
 DEFAULT_PAGE_SIZE = 50
 
@@ -33,6 +32,7 @@ class TasteRequest(BaseModel):
 
 @dataclass
 class Job:
+    # Events are kept for the life of the process so a reloaded client can replay them; ids are in-memory only.
     request: RunRequest
     events: list[dict] = field(default_factory=list)
     finished: bool = False
@@ -63,6 +63,7 @@ def _process_jobs(jobs: "queue.Queue[Job]", appdb: AppDb) -> None:
 
 
 def _stream(job: Job, start: int) -> Iterator[str]:
+    # The SSE event id is the event's index in job.events; the stream ends once the job has finished and is drained.
     index = start
     while True:
         with job.cond:
@@ -107,6 +108,7 @@ def get_run_events(run_id: str, request: Request, last_event_id: Annotated[int |
     job = request.app.state.jobs.get(run_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Unknown run")
+    # Without Last-Event-ID every event is replayed, so a page reload can reattach to a run.
     start = 0 if last_event_id is None else last_event_id + 1
     return StreamingResponse(_stream(job, start), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
@@ -118,6 +120,7 @@ def list_songs(
     page_size: Annotated[int, Query(ge=1, le=100)] = DEFAULT_PAGE_SIZE,
 ) -> dict:
     appdb: AppDb = request.app.state.appdb
+    # A page past the last returns items: [] with the correct total.
     items = appdb.list_songs(limit=page_size, offset=(page - 1) * page_size)
     return {"items": items, "total": appdb.count_songs(), "page": page, "page_size": page_size}
 
@@ -138,11 +141,8 @@ def save_taste(body: TasteRequest, request: Request) -> dict:
         profile = normalize_taste(body.profile)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    # Saving during a run is fine: a run reads the taste once when it starts.
     return _serialize_taste(request.app.state.appdb.save_taste(profile))
-
-
-# Mounted last so it never shadows the /api routes.
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 if __name__ == "__main__":

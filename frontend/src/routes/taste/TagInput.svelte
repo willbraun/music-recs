@@ -26,6 +26,7 @@
 	let status = $state('')
 
 	function addItems(names: string[]) {
+		// Names are never split on commas, since artist names can contain them.
 		for (const raw of names) {
 			const name = raw.trim()
 			if (!name || hasItem(items, name)) continue
@@ -67,6 +68,7 @@
 	function handlePaste(event: ClipboardEvent) {
 		const pasted = event.clipboardData?.getData('text') ?? ''
 		if (!/[\r\n]/.test(pasted)) return
+		// Pasted lines become one chip each.
 		event.preventDefault()
 		message = ''
 		addItems(pasted.split(/\r?\n/))

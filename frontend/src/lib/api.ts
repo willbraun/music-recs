@@ -1,3 +1,4 @@
+// Mirrors the API's Song; a `scored` run event carries the same fields. The artwork fields are null when no match.
 export interface Song {
 	video_id: string
 	title: string
@@ -54,6 +55,7 @@ export class ApiError extends Error {
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
+	// detail is a string for errors the API raises itself; validation errors send a list, so use the generic message.
 	try {
 		const body = await response.json()
 		if (typeof body?.detail === 'string') return body.detail

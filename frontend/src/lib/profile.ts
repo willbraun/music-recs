@@ -1,5 +1,6 @@
 import type { TasteProfile } from '#lib/api.js'
 
+// Mirror the server's limits so errors show early; the server remains the authority.
 export const MAX_ITEMS = 50
 export const MAX_ITEM_CHARS = 100
 export const MAX_NOTES_CHARS = 1000
