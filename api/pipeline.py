@@ -17,16 +17,24 @@ FREQUENT_ARTIST_WINDOW = 100
 NO_TASTE_MESSAGE = "Set your taste first"
 
 
+def _is_blocked(artist: str, blocked_artists: frozenset[str] | set[str]) -> bool:
+    # Any credited artist counts, so a disliked guest blocks "Lead, Guest"; the whole credit covers names with a comma.
+    credits = {artist.strip().casefold(), *(name.strip().casefold() for name in artist.split(","))}
+    return not credits.isdisjoint(blocked_artists)
+
+
 def _find_songs(
     searches: list[tuple[str, str | None]],
     count: int,
     skip_ids: set[str],
     workdir: Path,
     avoid_artists: frozenset[str] | set[str] = frozenset(),
+    blocked_artists: frozenset[str] | set[str] = frozenset(),
 ) -> Iterator[tuple[Song, str, str | None]]:
     """Yield songs in expanding batches, up to the per-query search result limit. Each artist appears once.
 
     Songs by `avoid_artists` (artist keys) are held back and yielded last, only if the consumer still wants more.
+    Songs crediting any of `blocked_artists` (casefolded names) are never yielded.
     """
     max_count = MAX_SEARCH_RESULTS_PER_QUERY // OVERFETCH * len(searches)
     count = min(count, max_count)
@@ -41,6 +49,10 @@ def _find_songs(
             for song in fetch_songs(query, share, skip_ids, workdir):
                 # Later queries and batches must not return this song again.
                 skip_ids.add(song.video_id)
+
+                if _is_blocked(song.artist, blocked_artists):
+                    song.clip_path.unlink(missing_ok=True)
+                    continue
 
                 # Skip songs by artists already seen anywhere in this run.
                 artist_key = get_artist_key(song.artist)
@@ -116,8 +128,9 @@ def run(
     analyzed = 0
     recommended = 0
     avoid_keys = {get_artist_key(artist) for artist in frequent_artists}
+    blocked_keys = {artist.strip().casefold() for artist in saved_taste.profile.disliked_artists}
     with tempfile.TemporaryDirectory(prefix="music-recs-") as workdir, ThreadPoolExecutor(max_workers=1) as pool:
-        songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir), avoid_keys)
+        songs = _find_songs(searches, candidate_limit, skip_ids, Path(workdir), avoid_keys, blocked_keys)
         # fetch_songs downloads several clips ahead in parallel; this thread only hands them to the analyzer.
         pending = pool.submit(next, songs, None)
         try:

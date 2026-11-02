@@ -84,6 +84,23 @@ def test_find_songs_defers_avoided_artists_to_the_end(monkeypatch: pytest.Monkey
     assert fetched[0].clip_path.exists()
 
 
+def test_find_songs_never_yields_blocked_artists_and_deletes_their_clips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fetched = [
+        _song("a", tmp_path, "Flume"),
+        _song("b", tmp_path, "Muse, FLUME"),
+        _song("c", tmp_path, "Tyler, The Creator"),
+        _song("d", tmp_path, "Tame Impala"),
+    ]
+    monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(fetched))
+    skip_ids: set[str] = set()
+
+    found = list(pipeline._find_songs([("a", None)], 4, skip_ids, tmp_path, blocked_artists={"flume", "tyler, the creator"}))
+
+    assert [s.video_id for s, _, _ in found] == ["d"]
+    assert not any(song.clip_path.exists() for song in fetched[:3])
+    assert {"a", "b", "c"} <= skip_ids
+
+
 def test_find_songs_records_yielded_ids_as_skipped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter([_song("x", tmp_path)]))
     skip_ids: set[str] = set()
@@ -127,8 +144,9 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Replaces the model and network layers; verdicts are taken per video id."""
     state = SimpleNamespace(found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[], artwork_calls=[])
 
-    def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset()):
+    def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset(), blocked_artists=frozenset()):
         state.avoid_artists = avoid_artists
+        state.blocked_artists = blocked_artists
         state.fetch_args = (searches, count, set(skip_ids))
         for video_id in state.found:
             yield _song(video_id, tmp_path), searches[0][0], searches[0][1]
@@ -288,3 +306,11 @@ def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> No
 
     assert stub_pipeline.avoided == ["Flume"]
     assert stub_pipeline.avoid_artists == {"flume"}
+
+
+def test_run_blocks_disliked_artists(appdb: AppDb, stub_pipeline) -> None:
+    appdb.save_taste(TasteProfile(liked_genres=["Rock"], disliked_artists=["Muse", " Radiohead "]))
+
+    list(pipeline.run("q", 1, 50, appdb))
+
+    assert stub_pipeline.blocked_artists == {"muse", "radiohead"}
