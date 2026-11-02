@@ -172,7 +172,7 @@ describe('handleRunEvent', () => {
 			kind: 'song',
 			song: { video_id: 'a' },
 		})
-		expect(run.status).toBe('Found 1 of 3')
+		expect(run.status).toBe('Found 1 of 3. Searching for the next song...')
 	})
 
 	it('removes the loading card on a not recommended score', () => {

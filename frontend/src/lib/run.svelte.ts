@@ -123,7 +123,8 @@ export function handleRunEvent(event: RunEvent) {
 				// Not-recommended songs are not shown here; they only appear on the Songs page.
 				run.cards.splice(index, 1)
 			}
-			run.status = `Found ${run.recommended} of ${run.count}`
+			// The next song is still being fetched, so say so until the next analyzing event or done.
+			run.status = `Found ${run.recommended} of ${run.count}. Searching for the next song...`
 			break
 		}
 		case 'done':
