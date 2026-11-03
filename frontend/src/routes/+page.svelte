@@ -15,6 +15,7 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings'
 	import SparklesIcon from '@lucide/svelte/icons/sparkles'
 	import LoadingSongCard from '../lib/components/LoadingSongCard.svelte'
+	import ModelDownload from '../lib/components/ModelDownload.svelte'
 	import SongCard from '../lib/components/SongCard.svelte'
 
 	const MIN_COUNT = 1
@@ -147,6 +148,10 @@
 		<p class="min-h-6 text-muted-foreground" aria-live="polite">
 			{#if run.phase !== 'idle'}{run.status}{/if}
 		</p>
+
+		{#if run.download}
+			<ModelDownload download={run.download} />
+		{/if}
 	</section>
 
 	{#if isGridVisible}

@@ -25,6 +25,7 @@ vi.mock('#lib/run.svelte.js', () => ({
 		count: 0,
 		recommended: 0,
 		cards: [],
+		download: null,
 		error: null,
 	},
 	startNewRun: startNewRunMock,
@@ -38,6 +39,7 @@ beforeEach(() => {
 	run.phase = 'idle'
 	run.status = ''
 	run.cards = []
+	run.download = null
 	startNewRunMock.mockReset()
 	playSongMock.mockReset()
 })
@@ -136,6 +138,30 @@ describe('home page', () => {
 		render(Page)
 
 		expect(screen.getByText('Searching...')).toBeInTheDocument()
+	})
+
+	it('shows the model download panel while a download is in progress', () => {
+		run.phase = 'preparing'
+		run.status = 'Downloading model (first run only)...'
+		run.download = {
+			model: 'org/model',
+			downloaded_bytes: 50,
+			total_bytes: 100,
+			bytes_per_second: 10,
+			seconds_remaining: 5,
+		}
+		render(Page)
+
+		expect(
+			screen.getByRole('progressbar', { name: 'Downloading org/model' })
+		).toHaveAttribute('aria-valuenow', '50')
+	})
+
+	it('hides the model download panel without a download', () => {
+		run.phase = 'preparing'
+		render(Page)
+
+		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
 	})
 
 	it('shows the first loading card while preparing', () => {

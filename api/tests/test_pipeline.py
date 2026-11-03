@@ -121,15 +121,30 @@ def test_download_model_skipped_when_cached(monkeypatch: pytest.MonkeyPatch) -> 
 def test_download_model_downloads_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict] = []
 
-    def fake_download(model_id: str, **kwargs) -> None:
-        calls.append(kwargs)
-        if kwargs.get("local_files_only"):
+    def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
+        calls.append({"local_files_only": local_files_only, "dry_run": dry_run, "tqdm_class": tqdm_class is not None})
+        if local_files_only:
             raise LocalEntryNotFoundError("missing")
+        if dry_run:
+            return [SimpleNamespace(file_size=300, will_download=True), SimpleNamespace(file_size=50, will_download=False)]
+        return "path"
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
+    monkeypatch.setattr("model_download.POLL_SECONDS", 0.01)
 
-    assert list(pipeline._download_model_if_missing("org/model")) == [{"type": "downloading_model", "model": "org/model"}]
-    assert calls == [{"local_files_only": True}, {}]
+    events = list(pipeline._download_model_if_missing("org/model"))
+
+    assert events[0] == {"type": "downloading_model", "model": "org/model", "total_bytes": 300}
+    assert events[-1] == {
+        "type": "download_progress",
+        "model": "org/model",
+        "downloaded_bytes": 300,
+        "total_bytes": 300,
+        "bytes_per_second": 0.0,
+        "seconds_remaining": 0.0,
+    }
+    assert [c["dry_run"] for c in calls] == [False, True, False]
+    assert calls[-1]["tqdm_class"]
 
 
 @pytest.fixture

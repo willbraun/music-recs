@@ -142,7 +142,7 @@ describe('handleRunEvent', () => {
 			'Reading your taste...',
 		],
 		[
-			{ type: 'downloading_model', model: 'm' },
+			{ type: 'downloading_model', model: 'm', total_bytes: 100 },
 			'Downloading model (first run only)...',
 		],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
@@ -214,6 +214,65 @@ describe('handleRunEvent', () => {
 		expect(run.status).toBe('Model crashed')
 		expect(toastErrorMock).toHaveBeenCalledWith('Model crashed')
 		expect(stream.close).toHaveBeenCalled()
+	})
+})
+
+describe('model download', () => {
+	const progress: RunEvent = {
+		type: 'download_progress',
+		model: 'm',
+		downloaded_bytes: 40,
+		total_bytes: 100,
+		bytes_per_second: 10,
+		seconds_remaining: 6,
+	}
+
+	it('starts an empty download on downloading_model', () => {
+		handleRunEvent({ type: 'downloading_model', model: 'm', total_bytes: 100 })
+
+		expect(run.download).toEqual({
+			model: 'm',
+			downloaded_bytes: 0,
+			total_bytes: 100,
+			bytes_per_second: 0,
+			seconds_remaining: null,
+		})
+	})
+
+	it('keeps the latest download_progress without changing the status', () => {
+		handleRunEvent({ type: 'downloading_model', model: 'm', total_bytes: 100 })
+		handleRunEvent(progress)
+
+		expect(run.download).toEqual({
+			model: 'm',
+			downloaded_bytes: 40,
+			total_bytes: 100,
+			bytes_per_second: 10,
+			seconds_remaining: 6,
+		})
+		expect(run.status).toBe('Downloading model (first run only)...')
+	})
+
+	it.each([
+		[{ type: 'queries', queries: [] }],
+		[{ type: 'fetching' }],
+		[{ type: 'done', analyzed: 0, recommended: 0, count: 1 }],
+		[{ type: 'error', message: 'boom' }],
+	] as [RunEvent][])('clears the download on %o', (event) => {
+		handleRunEvent(progress)
+		handleRunEvent(event)
+
+		expect(run.download).toBeNull()
+	})
+
+	it('clears the download on reset and when a new run starts', async () => {
+		handleRunEvent(progress)
+		resetRun()
+		expect(run.download).toBeNull()
+
+		handleRunEvent(progress)
+		await startNewRun(3, 50)
+		expect(run.download).toBeNull()
 	})
 })
 

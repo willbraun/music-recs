@@ -7,6 +7,7 @@ from typing import Iterator
 from appdb import AppDb, get_artist_key
 from artwork import find_artwork
 from fetch import OVERFETCH, Song, fetch_songs
+from model_download import download_model, get_download_size
 
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
@@ -72,15 +73,16 @@ def _find_songs(
 
 
 def _download_model_if_missing(model_id: str) -> Iterator[dict]:
-    """Yield a downloading_model event and download the model, unless it is already cached."""
+    """Yield a downloading_model event, then download_progress events while downloading the model, unless it is cached."""
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import LocalEntryNotFoundError
 
     try:
         snapshot_download(model_id, local_files_only=True)
     except LocalEntryNotFoundError:
-        yield {"type": "downloading_model", "model": model_id}
-        snapshot_download(model_id)
+        total_bytes = get_download_size(model_id)
+        yield {"type": "downloading_model", "model": model_id, "total_bytes": total_bytes}
+        yield from download_model(model_id, total_bytes)
 
 
 def run(

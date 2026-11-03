@@ -17,6 +17,15 @@ export interface Song {
 
 export type Tier = 'familiar' | 'adjacent' | 'adventurous'
 
+// Progress of a model download; total_bytes and seconds_remaining are null while unknown.
+export interface ModelDownload {
+	model: string
+	downloaded_bytes: number
+	total_bytes: number | null
+	bytes_per_second: number
+	seconds_remaining: number | null
+}
+
 export type RunEvent =
 	| {
 			type: 'started'
@@ -24,7 +33,8 @@ export type RunEvent =
 			count: number
 			exploration: number
 	  }
-	| { type: 'downloading_model'; model: string }
+	| { type: 'downloading_model'; model: string; total_bytes: number | null }
+	| ({ type: 'download_progress' } & ModelDownload)
 	| { type: 'queries'; queries: { query: string; tier: Tier | null }[] }
 	| { type: 'fetching' }
 	| {

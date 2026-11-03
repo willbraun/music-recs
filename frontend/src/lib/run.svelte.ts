@@ -2,6 +2,7 @@ import {
 	ApiError,
 	openRunEvents,
 	startRun,
+	type ModelDownload,
 	type RunEvent,
 	type Song,
 } from '#lib/api.js'
@@ -32,6 +33,7 @@ export interface RunState {
 	count: number
 	recommended: number
 	cards: RunCard[]
+	download: ModelDownload | null
 	error: string | null
 }
 
@@ -45,6 +47,7 @@ function createInitialState(): RunState {
 		count: 0,
 		recommended: 0,
 		cards: [],
+		download: null,
 		error: null,
 	}
 }
@@ -79,6 +82,7 @@ function failRun(message: string) {
 	run.phase = 'error'
 	run.status = message
 	run.error = message
+	run.download = null
 	toast.error(message)
 }
 
@@ -90,12 +94,30 @@ export function handleRunEvent(event: RunEvent) {
 			break
 		case 'downloading_model':
 			run.status = 'Downloading model (first run only)...'
+			run.download = {
+				model: event.model,
+				downloaded_bytes: 0,
+				total_bytes: event.total_bytes,
+				bytes_per_second: 0,
+				seconds_remaining: null,
+			}
+			break
+		case 'download_progress':
+			run.download = {
+				model: event.model,
+				downloaded_bytes: event.downloaded_bytes,
+				total_bytes: event.total_bytes,
+				bytes_per_second: event.bytes_per_second,
+				seconds_remaining: event.seconds_remaining,
+			}
 			break
 		case 'queries':
 			run.status = 'Searching...'
+			run.download = null
 			break
 		case 'fetching':
 			run.status = 'Finding songs...'
+			run.download = null
 			break
 		case 'analyzing':
 			run.status = `Listening to ${event.title} by ${event.artist}...`
@@ -130,6 +152,7 @@ export function handleRunEvent(event: RunEvent) {
 		case 'done':
 			closeRunStream()
 			run.phase = 'done'
+			run.download = null
 			run.recommended = event.recommended
 			run.count = event.count
 			run.status = `Done`
