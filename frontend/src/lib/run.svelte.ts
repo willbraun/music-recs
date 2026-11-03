@@ -2,7 +2,7 @@ import {
 	ApiError,
 	openRunEvents,
 	startRun,
-	type ModelDownload,
+	type ModelDownloadItem,
 	type RunEvent,
 	type Song,
 } from '#lib/api.js'
@@ -33,7 +33,7 @@ export interface RunState {
 	count: number
 	recommended: number
 	cards: RunCard[]
-	download: ModelDownload | null
+	downloads: ModelDownloadItem[]
 	error: string | null
 }
 
@@ -47,7 +47,7 @@ function createInitialState(): RunState {
 		count: 0,
 		recommended: 0,
 		cards: [],
-		download: null,
+		downloads: [],
 		error: null,
 	}
 }
@@ -82,8 +82,23 @@ function failRun(message: string) {
 	run.phase = 'error'
 	run.status = message
 	run.error = message
-	run.download = null
+	run.downloads = []
 	toast.error(message)
+}
+
+function updateDownload(model: string, update: Partial<ModelDownloadItem>) {
+	const existing = run.downloads.find((download) => download.model === model)
+	if (existing) Object.assign(existing, update)
+	else
+		run.downloads.push({
+			model,
+			downloaded_bytes: 0,
+			total_bytes: null,
+			bytes_per_second: 0,
+			seconds_remaining: null,
+			state: 'pending',
+			...update,
+		})
 }
 
 export function handleRunEvent(event: RunEvent) {
@@ -92,32 +107,43 @@ export function handleRunEvent(event: RunEvent) {
 			run.count = event.count
 			run.status = 'Reading your taste...'
 			break
-		case 'downloading_model':
-			run.status = 'Downloading model (first run only)...'
-			run.download = {
-				model: event.model,
+		case 'downloading_models':
+			run.status = 'Downloading models (first run only)...'
+			run.downloads = event.models.map(({ model, total_bytes }) => ({
+				model,
 				downloaded_bytes: 0,
-				total_bytes: event.total_bytes,
+				total_bytes,
 				bytes_per_second: 0,
 				seconds_remaining: null,
-			}
+				state: 'pending',
+			}))
+			break
+		case 'downloading_model':
+			run.status = 'Downloading models (first run only)...'
+			updateDownload(event.model, {
+				total_bytes: event.total_bytes,
+				state: 'downloading',
+			})
 			break
 		case 'download_progress':
-			run.download = {
-				model: event.model,
+			updateDownload(event.model, {
 				downloaded_bytes: event.downloaded_bytes,
 				total_bytes: event.total_bytes,
 				bytes_per_second: event.bytes_per_second,
 				seconds_remaining: event.seconds_remaining,
-			}
+				state: 'downloading',
+			})
+			break
+		case 'model_downloaded':
+			updateDownload(event.model, { state: 'done' })
 			break
 		case 'queries':
 			run.status = 'Searching...'
-			run.download = null
+			run.downloads = []
 			break
 		case 'fetching':
 			run.status = 'Finding songs...'
-			run.download = null
+			run.downloads = []
 			break
 		case 'analyzing':
 			run.status = `Listening to ${event.title} by ${event.artist}...`
@@ -152,7 +178,7 @@ export function handleRunEvent(event: RunEvent) {
 		case 'done':
 			closeRunStream()
 			run.phase = 'done'
-			run.download = null
+			run.downloads = []
 			run.recommended = event.recommended
 			run.count = event.count
 			run.status = `Done`

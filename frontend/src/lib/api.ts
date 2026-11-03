@@ -26,6 +26,11 @@ export interface ModelDownload {
 	seconds_remaining: number | null
 }
 
+// pending: queued behind an earlier download. A run downloads its missing models one at a time.
+export type ModelDownloadState = 'pending' | 'downloading' | 'done'
+
+export type ModelDownloadItem = ModelDownload & { state: ModelDownloadState }
+
 export type RunEvent =
 	| {
 			type: 'started'
@@ -33,8 +38,13 @@ export type RunEvent =
 			count: number
 			exploration: number
 	  }
+	| {
+			type: 'downloading_models'
+			models: { model: string; total_bytes: number | null }[]
+	  }
 	| { type: 'downloading_model'; model: string; total_bytes: number | null }
 	| ({ type: 'download_progress' } & ModelDownload)
+	| { type: 'model_downloaded'; model: string }
 	| { type: 'queries'; queries: { query: string; tier: Tier | null }[] }
 	| { type: 'fetching' }
 	| {

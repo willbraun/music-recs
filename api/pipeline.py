@@ -72,17 +72,30 @@ def _find_songs(
     yield from deferred
 
 
-def _download_model_if_missing(model_id: str) -> Iterator[dict]:
-    """Yield a downloading_model event, then download_progress events while downloading the model, unless it is cached."""
+def _download_missing_models(model_ids: list[str]) -> Iterator[dict]:
+    """Download the uncached models one after another, yielding nothing when all are cached.
+
+    One downloading_models event lists every missing model with its size first. Each download is then bracketed by
+    downloading_model and model_downloaded events, with download_progress events between them.
+    """
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import LocalEntryNotFoundError
 
-    try:
-        snapshot_download(model_id, local_files_only=True)
-    except LocalEntryNotFoundError:
-        total_bytes = get_download_size(model_id)
-        yield {"type": "downloading_model", "model": model_id, "total_bytes": total_bytes}
-        yield from download_model(model_id, total_bytes)
+    missing: list[str] = []
+    for model_id in model_ids:
+        try:
+            snapshot_download(model_id, local_files_only=True)
+        except LocalEntryNotFoundError:
+            missing.append(model_id)
+    if not missing:
+        return
+
+    sizes = {model_id: get_download_size(model_id) for model_id in missing}
+    yield {"type": "downloading_models", "models": [{"model": m, "total_bytes": sizes[m]} for m in missing]}
+    for model_id in missing:
+        yield {"type": "downloading_model", "model": model_id, "total_bytes": sizes[model_id]}
+        yield from download_model(model_id, sizes[model_id])
+        yield {"type": "model_downloaded", "model": model_id}
 
 
 def run(
@@ -112,10 +125,12 @@ def run(
     frequent_artists = [artist for artist, n in artist_counts.items() if n >= FREQUENT_ARTIST_RECOMMENDATIONS]
     yield {"type": "started", "query": query, "count": count, "exploration": exploration}
 
-    # 2. Use the given query, or generate queries from the taste at this exploration level.
+    # 2. Download every model this run needs now, so no later step stalls on a download.
+    yield from _download_missing_models([QUERY_MODEL_ID, ANALYSIS_MODEL_ID] if query is None else [ANALYSIS_MODEL_ID])
+
+    # 3. Use the given query, or generate queries from the taste at this exploration level.
     candidate_limit = count * CANDIDATES_PER_RECOMMENDATION
     if query is None:
-        yield from _download_model_if_missing(QUERY_MODEL_ID)
         generated = generate_queries(
             taste, saved_taste.profile.liked_artists, exploration, min(candidate_limit, MAX_QUERIES), frequent_artists
         )
@@ -124,8 +139,7 @@ def run(
     else:
         searches = [(query, None)]
 
-    # 3. Download clips for each query and analyze them one at a time.
-    yield from _download_model_if_missing(ANALYSIS_MODEL_ID)
+    # 4. Download clips for each query and analyze them one at a time.
     yield {"type": "fetching"}
     analyzed = 0
     recommended = 0
@@ -159,11 +173,11 @@ def run(
                     **result,
                 }
 
-                # 4. Ask the audio model for a verdict.
+                # 5. Ask the audio model for a verdict.
                 verdict = analyze(song.clip_path, taste, exploration)
                 song.clip_path.unlink(missing_ok=True)
 
-                # 5. Cache the song so later runs skip it, then report.
+                # 6. Cache the song so later runs skip it, then report.
                 appdb.add_song(
                     song.video_id,
                     song.title,

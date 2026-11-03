@@ -142,8 +142,15 @@ describe('handleRunEvent', () => {
 			'Reading your taste...',
 		],
 		[
+			{
+				type: 'downloading_models',
+				models: [{ model: 'm', total_bytes: 100 }],
+			},
+			'Downloading models (first run only)...',
+		],
+		[
 			{ type: 'downloading_model', model: 'm', total_bytes: 100 },
-			'Downloading model (first run only)...',
+			'Downloading models (first run only)...',
 		],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
 		[{ type: 'fetching' }, 'Finding songs...'],
@@ -220,37 +227,77 @@ describe('handleRunEvent', () => {
 describe('model download', () => {
 	const progress: RunEvent = {
 		type: 'download_progress',
-		model: 'm',
+		model: 'a',
 		downloaded_bytes: 40,
 		total_bytes: 100,
 		bytes_per_second: 10,
 		seconds_remaining: 6,
 	}
+	const announce: RunEvent = {
+		type: 'downloading_models',
+		models: [
+			{ model: 'a', total_bytes: 100 },
+			{ model: 'b', total_bytes: null },
+		],
+	}
 
-	it('starts an empty download on downloading_model', () => {
-		handleRunEvent({ type: 'downloading_model', model: 'm', total_bytes: 100 })
+	it('lists every model as pending when the downloads are announced', () => {
+		handleRunEvent(announce)
 
-		expect(run.download).toEqual({
-			model: 'm',
-			downloaded_bytes: 0,
-			total_bytes: 100,
-			bytes_per_second: 0,
-			seconds_remaining: null,
-		})
+		expect(run.downloads).toEqual([
+			{
+				model: 'a',
+				downloaded_bytes: 0,
+				total_bytes: 100,
+				bytes_per_second: 0,
+				seconds_remaining: null,
+				state: 'pending',
+			},
+			{
+				model: 'b',
+				downloaded_bytes: 0,
+				total_bytes: null,
+				bytes_per_second: 0,
+				seconds_remaining: null,
+				state: 'pending',
+			},
+		])
 	})
 
-	it('keeps the latest download_progress without changing the status', () => {
-		handleRunEvent({ type: 'downloading_model', model: 'm', total_bytes: 100 })
+	it('marks only the started model as downloading', () => {
+		handleRunEvent(announce)
+		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
+
+		expect(run.downloads.map((d) => d.state)).toEqual([
+			'downloading',
+			'pending',
+		])
+	})
+
+	it('keeps the latest progress per model without changing the status', () => {
+		handleRunEvent(announce)
+		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
 		handleRunEvent(progress)
 
-		expect(run.download).toEqual({
-			model: 'm',
+		expect(run.downloads[0]).toEqual({
+			model: 'a',
 			downloaded_bytes: 40,
 			total_bytes: 100,
 			bytes_per_second: 10,
 			seconds_remaining: 6,
+			state: 'downloading',
 		})
-		expect(run.status).toBe('Downloading model (first run only)...')
+		expect(run.downloads[1].downloaded_bytes).toBe(0)
+		expect(run.status).toBe('Downloading models (first run only)...')
+	})
+
+	it('marks a model done and starts the next one', () => {
+		handleRunEvent(announce)
+		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
+		handleRunEvent({ type: 'model_downloaded', model: 'a' })
+		handleRunEvent({ type: 'downloading_model', model: 'b', total_bytes: null })
+
+		expect(run.downloads.map((d) => d.state)).toEqual(['done', 'downloading'])
 	})
 
 	it.each([
@@ -258,21 +305,21 @@ describe('model download', () => {
 		[{ type: 'fetching' }],
 		[{ type: 'done', analyzed: 0, recommended: 0, count: 1 }],
 		[{ type: 'error', message: 'boom' }],
-	] as [RunEvent][])('clears the download on %o', (event) => {
-		handleRunEvent(progress)
+	] as [RunEvent][])('clears the downloads on %o', (event) => {
+		handleRunEvent(announce)
 		handleRunEvent(event)
 
-		expect(run.download).toBeNull()
+		expect(run.downloads).toEqual([])
 	})
 
-	it('clears the download on reset and when a new run starts', async () => {
-		handleRunEvent(progress)
+	it('clears the downloads on reset and when a new run starts', async () => {
+		handleRunEvent(announce)
 		resetRun()
-		expect(run.download).toBeNull()
+		expect(run.downloads).toEqual([])
 
-		handleRunEvent(progress)
+		handleRunEvent(announce)
 		await startNewRun(3, 50)
-		expect(run.download).toBeNull()
+		expect(run.downloads).toEqual([])
 	})
 })
 

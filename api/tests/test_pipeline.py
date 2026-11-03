@@ -110,32 +110,43 @@ def test_find_songs_records_yielded_ids_as_skipped(monkeypatch: pytest.MonkeyPat
     assert "x" in skip_ids
 
 
-def test_download_model_skipped_when_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_download_missing_models_skips_cached_models(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple] = []
     monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    assert list(pipeline._download_model_if_missing("org/model")) == []
-    assert calls == [(("org/model",), {"local_files_only": True})]
+    assert list(pipeline._download_missing_models(["org/a", "org/b"])) == []
+    assert calls == [(("org/a",), {"local_files_only": True}), (("org/b",), {"local_files_only": True})]
 
 
-def test_download_model_downloads_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[dict] = []
+def _fake_hub(monkeypatch: pytest.MonkeyPatch, cached: set[str], sizes: dict[str, int]) -> list[tuple[str, str]]:
+    """Replaces snapshot_download; returns the (model, action) calls in order."""
+    calls: list[tuple[str, str]] = []
 
     def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
-        calls.append({"local_files_only": local_files_only, "dry_run": dry_run, "tqdm_class": tqdm_class is not None})
         if local_files_only:
-            raise LocalEntryNotFoundError("missing")
+            calls.append((model_id, "check"))
+            if model_id not in cached:
+                raise LocalEntryNotFoundError("missing")
+            return "path"
         if dry_run:
-            return [SimpleNamespace(file_size=300, will_download=True), SimpleNamespace(file_size=50, will_download=False)]
+            calls.append((model_id, "size"))
+            return [SimpleNamespace(file_size=sizes[model_id], will_download=True)]
+        calls.append((model_id, "download"))
         return "path"
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
     monkeypatch.setattr("model_download.POLL_SECONDS", 0.01)
+    return calls
 
-    events = list(pipeline._download_model_if_missing("org/model"))
 
-    assert events[0] == {"type": "downloading_model", "model": "org/model", "total_bytes": 300}
-    assert events[-1] == {
+def test_download_missing_models_downloads_one_missing_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_hub(monkeypatch, set(), {"org/model": 300})
+
+    events = list(pipeline._download_missing_models(["org/model"]))
+
+    assert events[0] == {"type": "downloading_models", "models": [{"model": "org/model", "total_bytes": 300}]}
+    assert events[1] == {"type": "downloading_model", "model": "org/model", "total_bytes": 300}
+    assert events[-2] == {
         "type": "download_progress",
         "model": "org/model",
         "downloaded_bytes": 300,
@@ -143,8 +154,34 @@ def test_download_model_downloads_when_missing(monkeypatch: pytest.MonkeyPatch) 
         "bytes_per_second": 0.0,
         "seconds_remaining": 0.0,
     }
-    assert [c["dry_run"] for c in calls] == [False, True, False]
-    assert calls[-1]["tqdm_class"]
+    assert events[-1] == {"type": "model_downloaded", "model": "org/model"}
+    assert calls == [("org/model", "check"), ("org/model", "size"), ("org/model", "download")]
+
+
+def test_download_missing_models_checks_all_first_then_downloads_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_hub(monkeypatch, {"org/cached"}, {"org/a": 10, "org/b": 20})
+
+    events = list(pipeline._download_missing_models(["org/a", "org/cached", "org/b"]))
+
+    assert events[0] == {
+        "type": "downloading_models",
+        "models": [{"model": "org/a", "total_bytes": 10}, {"model": "org/b", "total_bytes": 20}],
+    }
+    assert [(e["type"], e["model"]) for e in events if e["type"] != "download_progress" and e["type"] != "downloading_models"] == [
+        ("downloading_model", "org/a"),
+        ("model_downloaded", "org/a"),
+        ("downloading_model", "org/b"),
+        ("model_downloaded", "org/b"),
+    ]
+    assert calls == [
+        ("org/a", "check"),
+        ("org/cached", "check"),
+        ("org/b", "check"),
+        ("org/a", "size"),
+        ("org/b", "size"),
+        ("org/a", "download"),
+        ("org/b", "download"),
+    ]
 
 
 @pytest.fixture
@@ -157,7 +194,9 @@ def appdb(tmp_path: Path) -> AppDb:
 @pytest.fixture
 def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Replaces the model and network layers; verdicts are taken per video id."""
-    state = SimpleNamespace(found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[], artwork_calls=[])
+    state = SimpleNamespace(
+        found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[], artwork_calls=[], required_models=[]
+    )
 
     def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset(), blocked_artists=frozenset()):
         state.avoid_artists = avoid_artists
@@ -183,7 +222,11 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
     monkeypatch.setattr(pipeline, "_find_songs", fake_find_songs)
     monkeypatch.setattr(pipeline, "find_artwork", fake_find_artwork)
-    monkeypatch.setattr(pipeline, "_download_model_if_missing", lambda model_id: iter(()))
+    def fake_download_missing_models(model_ids: list[str]):
+        state.required_models = model_ids
+        return iter(())
+
+    monkeypatch.setattr(pipeline, "_download_missing_models", fake_download_missing_models)
     monkeypatch.setattr("analyze.analyze", fake_analyze)
     monkeypatch.setattr("queries.generate_queries", fake_generate)
     return state
@@ -291,6 +334,28 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
     ]
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert next(e for e in events if e["type"] == "scored")["tier"] == "adjacent"
+
+
+def test_run_requires_only_the_analysis_model_when_a_query_is_given(appdb: AppDb, stub_pipeline) -> None:
+    list(pipeline.run("q", 1, 50, appdb))
+
+    assert stub_pipeline.required_models == ["nvidia/music-flamingo-2601-hf"]
+
+
+def test_run_requires_both_models_without_a_query(appdb: AppDb, stub_pipeline) -> None:
+    list(pipeline.run(None, 1, 50, appdb))
+
+    assert stub_pipeline.required_models == ["Qwen/Qwen2.5-3B-Instruct", "nvidia/music-flamingo-2601-hf"]
+
+
+def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        pipeline, "_download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
+    )
+
+    types = [e["type"] for e in pipeline.run(None, 1, 50, appdb)]
+
+    assert types[:4] == ["started", "downloading_models", "queries", "fetching"]
 
 
 def test_run_passes_exploration_to_the_analyzer(appdb: AppDb, stub_pipeline) -> None:

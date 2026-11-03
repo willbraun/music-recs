@@ -25,7 +25,7 @@ vi.mock('#lib/run.svelte.js', () => ({
 		count: 0,
 		recommended: 0,
 		cards: [],
-		download: null,
+		downloads: [],
 		error: null,
 	},
 	startNewRun: startNewRunMock,
@@ -39,7 +39,7 @@ beforeEach(() => {
 	run.phase = 'idle'
 	run.status = ''
 	run.cards = []
-	run.download = null
+	run.downloads = []
 	startNewRunMock.mockReset()
 	playSongMock.mockReset()
 })
@@ -140,24 +140,40 @@ describe('home page', () => {
 		expect(screen.getByText('Searching...')).toBeInTheDocument()
 	})
 
-	it('shows the model download panel while a download is in progress', () => {
+	it('shows every model download at once with its state', () => {
 		run.phase = 'preparing'
-		run.status = 'Downloading model (first run only)...'
-		run.download = {
-			model: 'org/model',
-			downloaded_bytes: 50,
-			total_bytes: 100,
-			bytes_per_second: 10,
-			seconds_remaining: 5,
-		}
+		run.status = 'Downloading models (first run only)...'
+		run.downloads = [
+			{
+				model: 'org/first',
+				downloaded_bytes: 50,
+				total_bytes: 100,
+				bytes_per_second: 10,
+				seconds_remaining: 5,
+				state: 'downloading',
+			},
+			{
+				model: 'org/second',
+				downloaded_bytes: 0,
+				total_bytes: 200,
+				bytes_per_second: 0,
+				seconds_remaining: null,
+				state: 'pending',
+			},
+		]
 		render(Page)
 
 		expect(
-			screen.getByRole('progressbar', { name: 'Downloading org/model' })
+			screen.getByRole('progressbar', { name: 'Downloading org/first' })
 		).toHaveAttribute('aria-valuenow', '50')
+		expect(
+			screen.getByRole('progressbar', {
+				name: 'Waiting to download org/second',
+			})
+		).toHaveAttribute('aria-valuenow', '0')
 	})
 
-	it('hides the model download panel without a download', () => {
+	it('hides the model download panels without downloads', () => {
 		run.phase = 'preparing'
 		render(Page)
 

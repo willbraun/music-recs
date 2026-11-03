@@ -149,10 +149,14 @@
 			{#if run.phase !== 'idle'}{run.status}{/if}
 		</p>
 
-		{#if run.download}
-			<div class={`flex w-full justify-center ${REVEAL_CLASS}`}>
-				<ModelDownload download={run.download} />
-			</div>
+		{#if run.downloads.length > 0}
+			<ul class={`flex w-full flex-col items-center gap-3 ${REVEAL_CLASS}`}>
+				{#each run.downloads as download (download.model)}
+					<li class="flex w-full justify-center">
+						<ModelDownload {download} state={download.state} />
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</section>
 
@@ -177,7 +181,10 @@
 					</Button>
 				{/if}
 			</div>
-			<ul class="grid grid-cols-4 gap-4" aria-labelledby="recommended-heading">
+			<ul
+				class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+				aria-labelledby="recommended-heading"
+			>
 				{#each run.cards as card, index (getCardKey(card))}
 					<li class={REVEAL_CLASS}>
 						{#if card.kind === 'loading'}
