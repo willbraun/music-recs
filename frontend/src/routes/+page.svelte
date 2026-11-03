@@ -150,7 +150,9 @@
 		</p>
 
 		{#if run.download}
-			<ModelDownload download={run.download} />
+			<div class={`flex w-full justify-center ${REVEAL_CLASS}`}>
+				<ModelDownload download={run.download} />
+			</div>
 		{/if}
 	</section>
 
