@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { ModelStatus } from '#lib/api.js'
 	import DownloadProgress from '#lib/components/DownloadProgress.svelte'
-	import LicenseOriginalLink from '#lib/components/LicenseOriginalLink.svelte'
 	import { Badge, type BadgeVariant } from '#lib/components/ui/badge/index.js'
 	import { Button } from '#lib/components/ui/button/index.js'
 	import * as Dialog from '#lib/components/ui/dialog/index.js'
@@ -85,20 +84,6 @@
 				{status.size_bytes === null
 					? 'Unknown'
 					: formatBytes(status.size_bytes)}
-			</dd>
-		</div>
-		<div class="flex gap-2">
-			<dt class="text-muted-foreground">License</dt>
-			<dd class="flex flex-wrap items-center gap-x-3 font-medium">
-				<a
-					class="rounded-sm underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					href={info.license.path}
-				>
-					{info.license.name}
-				</a>
-				<span class="font-normal">
-					<LicenseOriginalLink license={info.license} modelName={info.name} />
-				</span>
 			</dd>
 		</div>
 	</dl>

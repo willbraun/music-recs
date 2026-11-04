@@ -1,7 +1,4 @@
 <script lang="ts">
-	import LicenseOriginalLink from '#lib/components/LicenseOriginalLink.svelte'
-	import { MODELS } from '#lib/models.js'
-
 	const STEPS = [
 		'Your taste profile describes the genres and artists you like and dislike.',
 		'A language model turns that taste into search queries, unless you search for something yourself.',
@@ -60,41 +57,6 @@
 				<li>{step}</li>
 			{/each}
 		</ol>
-	</section>
-
-	<section class="flex flex-col gap-3" aria-labelledby="licenses-heading">
-		<h2 id="licenses-heading" class="text-xl font-semibold">Model Licenses</h2>
-		<p class="text-muted-foreground">
-			Both models are downloaded from Hugging Face and are not part of this app.
-			Each has its own license, which is an agreement between you and the
-			model's owner. This app does not grant you any rights to either model.
-			Both limit use to non-commercial purposes, and the NVIDIA license limits
-			it to academic purposes. You are responsible for making sure your use
-			follows each model's license.
-		</p>
-		<ul class="flex flex-col gap-4">
-			{#each MODELS as model (model.id)}
-				<li class="flex flex-col gap-1 rounded-lg border p-4 text-sm">
-					<span class="font-medium">{model.name}</span>
-					<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-						<a
-							class="w-fit underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							href={model.license.path}
-							aria-label="{model.license.name} for {model.name}"
-						>
-							{model.license.name}
-						</a>
-						<LicenseOriginalLink
-							license={model.license}
-							modelName={model.name}
-						/>
-					</div>
-					{#if model.license.note}
-						<p class="text-muted-foreground">{model.license.note}</p>
-					{/if}
-				</li>
-			{/each}
-		</ul>
 	</section>
 
 	<section class="flex flex-col gap-3" aria-labelledby="requirements-heading">

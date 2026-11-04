@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 describe('ModelCard', () => {
-	it('shows the name, purpose, size and license', () => {
+	it('shows the name, purpose and size', () => {
 		renderCard(makeStatus())
 
 		expect(
@@ -55,33 +55,6 @@ describe('ModelCard', () => {
 		).toBeInTheDocument()
 		expect(screen.getByText(info.purpose)).toBeInTheDocument()
 		expect(screen.getByText('16.5 GB')).toBeInTheDocument()
-		expect(
-			screen.getByRole('link', { name: 'NVIDIA OneWay Noncommercial License' })
-		).toHaveAttribute('href', '/license/nvidia')
-	})
-
-	it('offers the original license as a download for NVIDIA and a view for Qwen', () => {
-		renderCard(makeStatus())
-
-		const download = screen.getByRole('link', { name: /Download original/ })
-		expect(download).toHaveTextContent('Download Original')
-		expect(download).toHaveAttribute('href', info.license.original.url)
-		expect(download).toHaveAttribute('download')
-
-		cleanup()
-		render(ModelCard, {
-			info: MODELS[0],
-			status: makeStatus({ id: MODELS[0].id }),
-			isBusy: false,
-			isRemoving: false,
-			onDownload,
-			onRemove,
-		})
-
-		const view = screen.getByRole('link', { name: /View original/ })
-		expect(view).toHaveTextContent('View Original')
-		expect(view).toHaveAttribute('href', MODELS[0].license.original.url)
-		expect(view).toHaveAttribute('target', '_blank')
 	})
 
 	it('links to the model on Hugging Face in a new tab', () => {
