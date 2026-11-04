@@ -3,8 +3,13 @@ from types import SimpleNamespace
 
 import model_download
 import pytest
+from huggingface_hub.errors import LocalEntryNotFoundError
 from model_download import (RECONSTRUCT_BAR_NAME, TRANSFER_BAR_NAME,
-                            _SpeedWindow, download_model, get_download_size)
+                            _SpeedWindow, begin_download, download_model,
+                            fail_download, finish_download, get_download,
+                            get_download_size, get_model_size,
+                            is_download_active, is_model_downloaded,
+                            remove_model, update_download)
 
 
 def _files(*sizes: tuple[int | None, bool]) -> list[SimpleNamespace]:
@@ -155,3 +160,122 @@ def test_speed_window_is_zero_without_progress() -> None:
     window = _SpeedWindow(0.0)
 
     assert window.update(1.0, 0) == 0
+
+
+def test_is_model_downloaded_checks_only_the_local_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple] = []
+
+    def fake_snapshot_download(*args, **kwargs):
+        calls.append((args, kwargs))
+        if args[0] == "org/missing":
+            raise LocalEntryNotFoundError("missing")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+
+    assert is_model_downloaded("org/model")
+    assert not is_model_downloaded("org/missing")
+    assert calls[0] == (("org/model",), {"local_files_only": True})
+
+
+def _cache(*repos: SimpleNamespace) -> SimpleNamespace:
+    deleted: list[tuple[str, ...]] = []
+
+    def delete_revisions(*hashes: str) -> SimpleNamespace:
+        return SimpleNamespace(execute=lambda: deleted.append(hashes))
+
+    return SimpleNamespace(repos=list(repos), delete_revisions=delete_revisions, deleted=deleted)
+
+
+def _repo(repo_id: str, size: int, *hashes: str, repo_type: str = "model") -> SimpleNamespace:
+    return SimpleNamespace(
+        repo_id=repo_id, repo_type=repo_type, size_on_disk=size, revisions=[SimpleNamespace(commit_hash=h) for h in hashes]
+    )
+
+
+def test_get_model_size_uses_the_local_cache_once_downloaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    cache = _cache(_repo("org/other", 1), _repo("org/model", 500, "abc"))
+    monkeypatch.setattr("huggingface_hub.scan_cache_dir", lambda: cache)
+
+    assert get_model_size("org/model", True) == 500
+
+
+def test_get_model_size_sums_every_remote_file_and_caches_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def fake_snapshot_download(model_id: str, **kwargs):
+        calls.append(model_id)
+        return _files((100, True), (50, False), (None, True))
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+
+    assert get_model_size("org/model", False) == 150
+    assert get_model_size("org/model", False) == 150
+    assert calls == ["org/model"]
+
+
+def test_get_model_size_is_none_when_the_hub_is_unreachable_and_retried_later(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def fake_snapshot_download(model_id: str, **kwargs):
+        calls.append(model_id)
+        raise OSError("offline")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+    now = [0.0]
+    monkeypatch.setattr(model_download.time, "monotonic", lambda: now[0])
+
+    assert get_model_size("org/model", False) is None
+    assert get_model_size("org/model", False) is None
+    assert len(calls) == 1
+    now[0] = model_download.SIZE_RETRY_SECONDS + 1
+    assert get_model_size("org/model", False) is None
+    assert len(calls) == 2
+
+
+def test_remove_model_deletes_every_revision_of_only_that_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    cache = _cache(_repo("org/other", 1, "x"), _repo("org/model", 5, "a", "b"), _repo("org/model", 5, "d", repo_type="dataset"))
+    monkeypatch.setattr("huggingface_hub.scan_cache_dir", lambda: cache)
+
+    remove_model("org/model")
+
+    assert cache.deleted == [("a", "b")]
+
+
+def test_download_registry_tracks_progress_and_clears_on_finish() -> None:
+    begin_download("org/model", 100)
+    assert get_download("org/model") == {
+        "state": "pending",
+        "downloaded_bytes": 0,
+        "total_bytes": 100,
+        "bytes_per_second": 0.0,
+        "seconds_remaining": None,
+        "error": None,
+    }
+    assert is_download_active("org/model")
+
+    update_download("org/model", downloaded_bytes=40, bytes_per_second=10.0, seconds_remaining=6.0)
+    entry = get_download("org/model")
+    assert entry is not None
+    assert (entry["state"], entry["downloaded_bytes"], entry["total_bytes"]) == ("downloading", 40, 100)
+
+    finish_download("org/model")
+    assert get_download("org/model") is None
+    assert not is_download_active("org/model")
+
+
+def test_failed_download_stays_until_the_next_attempt_and_is_not_active() -> None:
+    begin_download("org/model", 100)
+    update_download("org/model", downloaded_bytes=40, bytes_per_second=10.0)
+
+    fail_download("org/model", "network down")
+    finish_download("org/model")
+
+    entry = get_download("org/model")
+    assert entry is not None
+    assert (entry["state"], entry["error"], entry["downloaded_bytes"], entry["bytes_per_second"]) == ("failed", "network down", 40, 0.0)
+    assert not is_download_active("org/model")
+
+    begin_download("org/model", None)
+    entry = get_download("org/model")
+    assert entry is not None
+    assert (entry["state"], entry["error"]) == ("pending", None)

@@ -8,9 +8,21 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startNewRunMock, playSongMock } = vi.hoisted(() => ({
+const {
+	startNewRunMock,
+	playSongMock,
+	getActiveDownloadsMock,
+	watchModelCacheMock,
+} = vi.hoisted(() => ({
 	startNewRunMock: vi.fn(),
 	playSongMock: vi.fn(),
+	getActiveDownloadsMock: vi.fn(),
+	watchModelCacheMock: vi.fn(),
+}))
+
+vi.mock('#lib/modelCache.svelte.js', () => ({
+	getActiveDownloads: getActiveDownloadsMock,
+	watchModelCache: watchModelCacheMock,
 }))
 
 vi.mock('#lib/player.svelte.js', async (importOriginal) => ({
@@ -25,7 +37,6 @@ vi.mock('#lib/run.svelte.js', () => ({
 		count: 0,
 		recommended: 0,
 		cards: [],
-		downloads: [],
 		error: null,
 	},
 	startNewRun: startNewRunMock,
@@ -39,9 +50,10 @@ beforeEach(() => {
 	run.phase = 'idle'
 	run.status = ''
 	run.cards = []
-	run.downloads = []
 	startNewRunMock.mockReset()
 	playSongMock.mockReset()
+	getActiveDownloadsMock.mockReset().mockReturnValue([])
+	watchModelCacheMock.mockReset().mockReturnValue(() => {})
 })
 
 afterEach(cleanup)
@@ -142,8 +154,7 @@ describe('home page', () => {
 
 	it('shows every model download at once with its state', () => {
 		run.phase = 'preparing'
-		run.status = 'Downloading models (first run only)...'
-		run.downloads = [
+		getActiveDownloadsMock.mockReturnValue([
 			{
 				model: 'org/first',
 				downloaded_bytes: 50,
@@ -160,7 +171,7 @@ describe('home page', () => {
 				seconds_remaining: null,
 				state: 'pending',
 			},
-		]
+		])
 		render(Page)
 
 		expect(
@@ -171,6 +182,34 @@ describe('home page', () => {
 				name: 'Waiting to download org/second',
 			})
 		).toHaveAttribute('aria-valuenow', '0')
+	})
+
+	it('shows a download started elsewhere even when no run is active', () => {
+		getActiveDownloadsMock.mockReturnValue([
+			{
+				model: 'org/first',
+				downloaded_bytes: 50,
+				total_bytes: 100,
+				bytes_per_second: 10,
+				seconds_remaining: 5,
+				state: 'downloading',
+			},
+		])
+		render(Page)
+
+		expect(
+			screen.getByRole('progressbar', { name: 'Downloading org/first' })
+		).toBeInTheDocument()
+	})
+
+	it('watches the models while mounted and stops on unmount', () => {
+		const stopWatching = vi.fn()
+		watchModelCacheMock.mockReturnValue(stopWatching)
+		const { unmount } = render(Page)
+
+		expect(watchModelCacheMock).toHaveBeenCalledOnce()
+		unmount()
+		expect(stopWatching).toHaveBeenCalledOnce()
 	})
 
 	it('hides the model download panels without downloads', () => {

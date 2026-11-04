@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import torch
+from model_download import QUERY_MODEL_ID
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_ID = QUERY_MODEL_ID
 MAX_NEW_TOKENS = 300
 TEMPERATURE = 0.9
 

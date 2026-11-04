@@ -58,7 +58,7 @@ function getLikeGroup() {
 }
 
 function getSaveButton() {
-	return screen.getByRole('button', { name: 'Save taste' })
+	return screen.getByRole('button', { name: 'Save Taste' })
 }
 
 describe('taste page', () => {
@@ -67,7 +67,7 @@ describe('taste page', () => {
 		render(Page)
 
 		expect(screen.getByLabelText('Loading taste')).toBeInTheDocument()
-		expect(screen.queryByRole('button', { name: 'Save taste' })).toBeNull()
+		expect(screen.queryByRole('button', { name: 'Save Taste' })).toBeNull()
 	})
 
 	it('shows the error with a Retry button that reloads', async () => {

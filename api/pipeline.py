@@ -7,7 +7,9 @@ from typing import Iterator
 from appdb import AppDb, get_artist_key
 from artwork import find_artwork
 from fetch import OVERFETCH, Song, fetch_songs
-from model_download import download_model, get_download_size
+from model_download import (begin_download, download_model, fail_download,
+                            finish_download, get_download_size,
+                            is_model_downloaded, update_download)
 
 MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
@@ -72,30 +74,48 @@ def _find_songs(
     yield from deferred
 
 
-def _download_missing_models(model_ids: list[str]) -> Iterator[dict]:
+def download_missing_models(model_ids: list[str]) -> Iterator[dict]:
     """Download the uncached models one after another, yielding nothing when all are cached.
 
     One downloading_models event lists every missing model with its size first. Each download is then bracketed by
     downloading_model and model_downloaded events, with download_progress events between them.
+
+    Progress is also kept in the shared download registry, so clients that did not start the download can show it.
     """
-    from huggingface_hub import snapshot_download
-    from huggingface_hub.errors import LocalEntryNotFoundError
+    missing = [model_id for model_id in model_ids if not is_model_downloaded(model_id)]
+    current: str | None = None
+    try:
+        if not missing:
+            return
 
-    missing: list[str] = []
-    for model_id in model_ids:
-        try:
-            snapshot_download(model_id, local_files_only=True)
-        except LocalEntryNotFoundError:
-            missing.append(model_id)
-    if not missing:
-        return
-
-    sizes = {model_id: get_download_size(model_id) for model_id in missing}
-    yield {"type": "downloading_models", "models": [{"model": m, "total_bytes": sizes[m]} for m in missing]}
-    for model_id in missing:
-        yield {"type": "downloading_model", "model": model_id, "total_bytes": sizes[model_id]}
-        yield from download_model(model_id, sizes[model_id])
-        yield {"type": "model_downloaded", "model": model_id}
+        sizes = {model_id: get_download_size(model_id) for model_id in missing}
+        for model_id in missing:
+            begin_download(model_id, sizes[model_id])
+        yield {"type": "downloading_models", "models": [{"model": m, "total_bytes": sizes[m]} for m in missing]}
+        for model_id in missing:
+            current = model_id
+            update_download(model_id)
+            yield {"type": "downloading_model", "model": model_id, "total_bytes": sizes[model_id]}
+            for event in download_model(model_id, sizes[model_id]):
+                update_download(
+                    model_id,
+                    downloaded_bytes=event["downloaded_bytes"],
+                    total_bytes=event["total_bytes"],
+                    bytes_per_second=event["bytes_per_second"],
+                    seconds_remaining=event["seconds_remaining"],
+                )
+                yield event
+            finish_download(model_id)
+            yield {"type": "model_downloaded", "model": model_id}
+    except Exception as e:
+        # Before the first download starts, every missing model is affected.
+        for model_id in [current] if current else missing:
+            fail_download(model_id, str(e))
+        raise
+    finally:
+        # Includes cached models, whose "pending" entry may have been set by a queued Models-page download.
+        for model_id in model_ids:
+            finish_download(model_id)
 
 
 def run(
@@ -126,7 +146,7 @@ def run(
     yield {"type": "started", "query": query, "count": count, "exploration": exploration}
 
     # 2. Download every model this run needs now, so no later step stalls on a download.
-    yield from _download_missing_models([QUERY_MODEL_ID, ANALYSIS_MODEL_ID] if query is None else [ANALYSIS_MODEL_ID])
+    yield from download_missing_models([QUERY_MODEL_ID, ANALYSIS_MODEL_ID] if query is None else [ANALYSIS_MODEL_ID])
 
     # 3. Use the given query, or generate queries from the taste at this exploration level.
     candidate_limit = count * CANDIDATES_PER_RECOMMENDATION

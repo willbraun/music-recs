@@ -6,21 +6,23 @@
 	import { onMount, type Snippet } from 'svelte'
 
 	const TASTE_PATH = '/taste'
+	// Pages that work without a taste: the taste page itself and the static ones.
+	const UNGATED_PATHS = [TASTE_PATH, '/models', '/about']
 
 	let { children }: { children: Snippet } = $props()
 
-	const isTastePage = $derived(page.url.pathname === TASTE_PATH)
+	const isUngated = $derived(UNGATED_PATHS.includes(page.url.pathname))
 
 	$effect(() => {
-		// Every page needs a taste, so check once here. replaceState keeps Back from returning to a gated page.
-		if (taste.status === 'none' && !isTastePage)
+		// Other pages need a taste, so check once here. replaceState keeps Back from returning to a gated page.
+		if (taste.status === 'none' && !isUngated)
 			void goto(TASTE_PATH, { replaceState: true })
 	})
 
 	onMount(loadTaste)
 </script>
 
-{#if isTastePage || taste.status === 'ready'}
+{#if isUngated || taste.status === 'ready'}
 	{@render children()}
 {:else if taste.status === 'error'}
 	<div class="flex flex-col items-center gap-3 px-6 py-12 text-center">

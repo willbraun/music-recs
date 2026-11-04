@@ -8,6 +8,7 @@ from appdb import AppDb
 from artwork import SongArtwork
 from fetch import Song
 from huggingface_hub.errors import LocalEntryNotFoundError
+from model_download import begin_download, get_download
 from taste_profile import TasteProfile
 
 
@@ -114,7 +115,7 @@ def test_download_missing_models_skips_cached_models(monkeypatch: pytest.MonkeyP
     calls: list[tuple] = []
     monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    assert list(pipeline._download_missing_models(["org/a", "org/b"])) == []
+    assert list(pipeline.download_missing_models(["org/a", "org/b"])) == []
     assert calls == [(("org/a",), {"local_files_only": True}), (("org/b",), {"local_files_only": True})]
 
 
@@ -142,7 +143,7 @@ def _fake_hub(monkeypatch: pytest.MonkeyPatch, cached: set[str], sizes: dict[str
 def test_download_missing_models_downloads_one_missing_model(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake_hub(monkeypatch, set(), {"org/model": 300})
 
-    events = list(pipeline._download_missing_models(["org/model"]))
+    events = list(pipeline.download_missing_models(["org/model"]))
 
     assert events[0] == {"type": "downloading_models", "models": [{"model": "org/model", "total_bytes": 300}]}
     assert events[1] == {"type": "downloading_model", "model": "org/model", "total_bytes": 300}
@@ -161,7 +162,7 @@ def test_download_missing_models_downloads_one_missing_model(monkeypatch: pytest
 def test_download_missing_models_checks_all_first_then_downloads_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake_hub(monkeypatch, {"org/cached"}, {"org/a": 10, "org/b": 20})
 
-    events = list(pipeline._download_missing_models(["org/a", "org/cached", "org/b"]))
+    events = list(pipeline.download_missing_models(["org/a", "org/cached", "org/b"]))
 
     assert events[0] == {
         "type": "downloading_models",
@@ -182,6 +183,71 @@ def test_download_missing_models_checks_all_first_then_downloads_in_order(monkey
         ("org/a", "download"),
         ("org/b", "download"),
     ]
+
+
+def test_download_missing_models_shares_progress_through_the_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_hub(monkeypatch, set(), {"org/a": 10, "org/b": 20})
+    seen: dict[str, dict | None] = {}
+
+    for event in pipeline.download_missing_models(["org/a", "org/b"]):
+        if event["type"] == "downloading_models":
+            seen["queued"] = get_download("org/b")
+        elif event["type"] == "downloading_model" and event["model"] == "org/b":
+            seen["a_after"] = get_download("org/a")
+            seen["b_started"] = get_download("org/b")
+        elif event["type"] == "download_progress" and event["model"] == "org/b":
+            seen["b_progress"] = get_download("org/b")
+
+    assert seen["queued"] is not None and seen["queued"]["state"] == "pending"
+    assert seen["queued"]["total_bytes"] == 20
+    assert seen["a_after"] is None
+    assert seen["b_started"] is not None and seen["b_started"]["state"] == "downloading"
+    assert seen["b_progress"] is not None and seen["b_progress"]["downloaded_bytes"] == 20
+    assert get_download("org/b") is None
+
+
+def test_download_missing_models_records_a_failure_for_the_model_that_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
+        if local_files_only:
+            raise LocalEntryNotFoundError("missing")
+        if dry_run:
+            return [SimpleNamespace(file_size=10, will_download=True)]
+        if model_id == "org/b":
+            raise RuntimeError("network down")
+        return "path"
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
+    monkeypatch.setattr("model_download.POLL_SECONDS", 0.01)
+
+    with pytest.raises(RuntimeError, match="network down"):
+        list(pipeline.download_missing_models(["org/a", "org/b", "org/c"]))
+
+    failed = get_download("org/b")
+    assert failed is not None and (failed["state"], failed["error"]) == ("failed", "network down")
+    assert get_download("org/a") is None
+    assert get_download("org/c") is None
+
+
+def test_download_missing_models_records_a_failure_for_every_model_when_sizes_are_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
+        if local_files_only:
+            raise LocalEntryNotFoundError("missing")
+        raise OSError("offline")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
+
+    with pytest.raises(OSError):
+        list(pipeline.download_missing_models(["org/a", "org/b"]))
+
+    assert [(get_download(m) or {}).get("state") for m in ("org/a", "org/b")] == ["failed", "failed"]
+
+
+def test_download_missing_models_clears_a_pending_entry_for_an_already_cached_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: "path")
+    begin_download("org/a", None)
+
+    assert list(pipeline.download_missing_models(["org/a"])) == []
+    assert get_download("org/a") is None
 
 
 @pytest.fixture
@@ -226,7 +292,7 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         state.required_models = model_ids
         return iter(())
 
-    monkeypatch.setattr(pipeline, "_download_missing_models", fake_download_missing_models)
+    monkeypatch.setattr(pipeline, "download_missing_models", fake_download_missing_models)
     monkeypatch.setattr("analyze.analyze", fake_analyze)
     monkeypatch.setattr("queries.generate_queries", fake_generate)
     return state
@@ -350,7 +416,7 @@ def test_run_requires_both_models_without_a_query(appdb: AppDb, stub_pipeline) -
 
 def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        pipeline, "_download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
+        pipeline, "download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
     )
 
     types = [e["type"] for e in pipeline.run(None, 1, 50, appdb)]

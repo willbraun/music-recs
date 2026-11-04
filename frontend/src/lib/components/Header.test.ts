@@ -35,12 +35,22 @@ describe('Header', () => {
 			'href',
 			'/taste'
 		)
+		expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute(
+			'href',
+			'/models'
+		)
+		expect(screen.getByRole('link', { name: 'About' })).toHaveAttribute(
+			'href',
+			'/about'
+		)
 	})
 
 	it.each([
 		['/', 'Discover'],
 		['/songs', 'Songs'],
 		['/taste', 'Taste'],
+		['/models', 'Models'],
+		['/about', 'About'],
 	])('marks only the current page at %s', (pathname, label) => {
 		pageMock.url.pathname = pathname
 		render(Header)

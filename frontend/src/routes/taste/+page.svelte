@@ -6,12 +6,12 @@
 </script>
 
 <svelte:head>
-	<title>Your taste</title>
+	<title>Taste</title>
 </svelte:head>
 
 <main class="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
 	<div class="flex flex-col gap-2">
-		<h1 class="text-3xl font-semibold tracking-tight">Your taste</h1>
+		<h1 class="text-3xl font-semibold tracking-tight">Taste</h1>
 		{#if taste.status === 'none'}
 			<p class="text-muted-foreground">
 				Enter your musical preferences to get started

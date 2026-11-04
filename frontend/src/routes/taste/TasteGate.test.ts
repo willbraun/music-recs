@@ -80,6 +80,19 @@ describe('TasteGate', () => {
 		expect(gotoMock).not.toHaveBeenCalled()
 	})
 
+	it.each(['/models', '/about'])(
+		'keeps %s without a taste and does not redirect',
+		async (pathname) => {
+			pageMock.url.pathname = pathname
+			getTasteMock.mockResolvedValue(null)
+			render(TasteGate, { children })
+
+			expect(await screen.findByText('Page content')).toBeInTheDocument()
+			await vi.waitFor(() => expect(taste.status).toBe('none'))
+			expect(gotoMock).not.toHaveBeenCalled()
+		}
+	)
+
 	it('shows an error with Retry when the taste cannot be loaded', async () => {
 		getTasteMock.mockRejectedValueOnce(new Error('Request failed (500)'))
 		getTasteMock.mockResolvedValueOnce(savedTaste)

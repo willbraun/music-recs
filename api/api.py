@@ -10,7 +10,10 @@ import uvicorn
 from appdb import AppDb
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pipeline import NO_TASTE_MESSAGE, run
+from model_download import (MODEL_IDS, begin_download, get_download,
+                            get_model_size, is_download_active,
+                            is_model_downloaded, remove_model)
+from pipeline import NO_TASTE_MESSAGE, download_missing_models, run
 from pydantic import BaseModel, Field, StringConstraints
 from taste_profile import Taste, TasteProfile, normalize_taste
 
@@ -33,7 +36,9 @@ class TasteRequest(BaseModel):
 @dataclass
 class Job:
     # Events are kept for the life of the process so a reloaded client can replay them; ids are in-memory only.
-    request: RunRequest
+    # A job is either a run (request) or the download of one model (model_id), whose progress clients read from /api/models.
+    request: RunRequest | None = None
+    model_id: str | None = None
     events: list[dict] = field(default_factory=list)
     finished: bool = False
     cond: threading.Condition = field(default_factory=threading.Condition)
@@ -49,12 +54,19 @@ class Job:
             self.cond.notify_all()
 
 
+def _generate_events(job: Job, appdb: AppDb) -> Iterator[dict]:
+    if job.model_id is not None:
+        return download_missing_models([job.model_id])
+    assert job.request is not None
+    return run(job.request.query, job.request.count, job.request.exploration, appdb)
+
+
 def _process_jobs(jobs: "queue.Queue[Job]", appdb: AppDb) -> None:
-    # A single worker serializes runs, since there is one model on one device.
+    # A single worker serializes runs and downloads, since there is one model on one device.
     while True:
         job = jobs.get()
         try:
-            for event in run(job.request.query, job.request.count, job.request.exploration, appdb):
+            for event in _generate_events(job, appdb):
                 job.publish(event)
         except Exception as e:
             job.publish({"type": "error", "message": str(e)})
@@ -143,6 +155,60 @@ def save_taste(body: TasteRequest, request: Request) -> dict:
         raise HTTPException(status_code=422, detail=str(e))
     # Saving during a run is fine: a run reads the taste once when it starts.
     return _serialize_taste(request.app.state.appdb.save_taste(profile))
+
+
+_download_start_lock = threading.Lock()
+
+
+def _require_model(model_id: str) -> None:
+    if model_id not in MODEL_IDS:
+        raise HTTPException(status_code=404, detail="Unknown model")
+
+
+def _is_busy(request: Request) -> bool:
+    return any(not job.finished for job in list(request.app.state.jobs.values()))
+
+
+def _serialize_model(model_id: str) -> dict:
+    # Files can look complete while a download is still writing them, so an active download is never reported as downloaded.
+    downloaded = not is_download_active(model_id) and is_model_downloaded(model_id)
+    return {
+        "id": model_id,
+        "downloaded": downloaded,
+        "size_bytes": get_model_size(model_id, downloaded),
+        "download": None if downloaded else get_download(model_id),
+    }
+
+
+@app.get("/api/models")
+def list_models(request: Request) -> dict:
+    # busy: a run or download is queued or running, so models cannot be removed.
+    return {"items": [_serialize_model(model_id) for model_id in MODEL_IDS], "busy": _is_busy(request)}
+
+
+@app.post("/api/models/{model_id:path}/download", status_code=202)
+def start_model_download(model_id: str, request: Request) -> dict:
+    _require_model(model_id)
+    # Idempotent: a download already queued or running (from a run or this page) is reported, not repeated.
+    with _download_start_lock:
+        if not is_download_active(model_id):
+            if is_model_downloaded(model_id):
+                raise HTTPException(status_code=409, detail="Model is already downloaded")
+            begin_download(model_id, None)
+            job = Job(model_id=model_id)
+            request.app.state.jobs[uuid.uuid4().hex] = job
+            request.app.state.queue.put(job)
+    return _serialize_model(model_id)
+
+
+@app.delete("/api/models/{model_id:path}", status_code=204)
+def delete_model(model_id: str, request: Request) -> None:
+    _require_model(model_id)
+    if _is_busy(request):
+        raise HTTPException(status_code=409, detail="Wait for the current run or download to finish")
+    if not is_model_downloaded(model_id):
+        raise HTTPException(status_code=409, detail="Model is not downloaded")
+    remove_model(model_id)
 
 
 if __name__ == "__main__":

@@ -122,16 +122,4 @@ describe('ModelDownload', () => {
 		expect(screen.getByText(/4\.8 GB/)).toBeInTheDocument()
 		expect(screen.queryByText(/%/)).not.toBeInTheDocument()
 	})
-
-	it('shows a finished model as downloaded with a full bar', () => {
-		render(ModelDownloadPanel, { download: makeDownload(), state: 'done' })
-
-		const bar = screen.getByRole('progressbar', {
-			name: 'Downloaded Music Flamingo 2601',
-		})
-		expect(bar).toHaveAttribute('aria-valuenow', '100')
-		expect(screen.getByText('100%')).toBeInTheDocument()
-		expect(screen.getByText(/Downloaded/)).toBeInTheDocument()
-		expect(screen.queryByText(/left/)).not.toBeInTheDocument()
-	})
 })

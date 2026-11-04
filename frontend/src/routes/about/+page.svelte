@@ -1,0 +1,113 @@
+<script lang="ts">
+	import LicenseOriginalLink from '#lib/components/LicenseOriginalLink.svelte'
+	import { MODELS } from '#lib/models.js'
+
+	const STEPS = [
+		'Your taste profile describes the genres and artists you like and dislike.',
+		'A language model turns that taste into search queries, unless you search for something yourself.',
+		'The queries are searched on YouTube Music, and a short clip is taken from the middle of each studio song.',
+		'An audio model listens to each clip and decides whether you would like it, with a confidence score.',
+		'Songs you would like are recommended, and album artwork is looked up for each one.',
+	]
+
+	// Estimates from the model sizes, not measured minimums.
+	const REQUIREMENTS = [
+		{
+			name: 'Disk Space',
+			detail:
+				'About 23 GB free for the two models, which are stored in the Hugging Face cache.',
+		},
+		{
+			name: 'Memory (VRAM)',
+			detail:
+				'24 GB or more of unified memory (Apple Silicon) or GPU memory (NVIDIA). The models load one at a time, so Music Flamingo (about 17 GB of weights) sets the need.',
+		},
+		{
+			name: 'Processor',
+			detail:
+				'Apple Silicon or an NVIDIA GPU. A CPU also works but is very slow. NVIDIA tested Music Flamingo on A100 and H100 GPUs on Linux.',
+		},
+		{
+			name: 'Operating System',
+			detail: 'macOS or Linux.',
+		},
+		{
+			name: 'Internet',
+			detail:
+				'Needed to download the models from Hugging Face, search and fetch audio from YouTube Music, and look up artwork from MusicBrainz and the Cover Art Archive.',
+		},
+	]
+</script>
+
+<svelte:head>
+	<title>About</title>
+</svelte:head>
+
+<main class="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12">
+	<div class="flex flex-col gap-2">
+		<h1 class="text-3xl font-semibold tracking-tight">About</h1>
+		<p class="text-muted-foreground">
+			Music Recs finds music online, analyzes it with an audio model running on
+			this computer, and recommends songs based on your musical taste. Your
+			taste and the songs it analyzes are stored locally.
+		</p>
+	</div>
+
+	<section class="flex flex-col gap-3" aria-labelledby="how-heading">
+		<h2 id="how-heading" class="text-xl font-semibold">How It Works</h2>
+		<ol class="flex list-decimal flex-col gap-1.5 pl-5 text-muted-foreground">
+			{#each STEPS as step (step)}
+				<li>{step}</li>
+			{/each}
+		</ol>
+	</section>
+
+	<section class="flex flex-col gap-3" aria-labelledby="licenses-heading">
+		<h2 id="licenses-heading" class="text-xl font-semibold">Model Licenses</h2>
+		<p class="text-muted-foreground">
+			Both models are downloaded from Hugging Face and are not part of this app.
+			Each has its own license, which is an agreement between you and the
+			model's owner. This app does not grant you any rights to either model.
+			Both limit use to non-commercial purposes, and the NVIDIA license limits
+			it to academic purposes. You are responsible for making sure your use
+			follows each model's license.
+		</p>
+		<ul class="flex flex-col gap-4">
+			{#each MODELS as model (model.id)}
+				<li class="flex flex-col gap-1 rounded-lg border p-4 text-sm">
+					<span class="font-medium">{model.name}</span>
+					<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+						<a
+							class="w-fit underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							href={model.license.path}
+							aria-label="{model.license.name} for {model.name}"
+						>
+							{model.license.name}
+						</a>
+						<LicenseOriginalLink
+							license={model.license}
+							modelName={model.name}
+						/>
+					</div>
+					{#if model.license.note}
+						<p class="text-muted-foreground">{model.license.note}</p>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	</section>
+
+	<section class="flex flex-col gap-3" aria-labelledby="requirements-heading">
+		<h2 id="requirements-heading" class="text-xl font-semibold">
+			System Requirements
+		</h2>
+		<dl class="flex flex-col divide-y rounded-lg border text-sm">
+			{#each REQUIREMENTS as requirement (requirement.name)}
+				<div class="flex flex-col gap-1 p-4 sm:flex-row sm:gap-6">
+					<dt class="w-36 shrink-0 font-medium">{requirement.name}</dt>
+					<dd class="text-muted-foreground">{requirement.detail}</dd>
+				</div>
+			{/each}
+		</dl>
+	</section>
+</main>

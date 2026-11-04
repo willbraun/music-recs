@@ -5,6 +5,8 @@
 		{ href: '/', label: 'Discover' },
 		{ href: '/songs', label: 'Songs' },
 		{ href: '/taste', label: 'Taste' },
+		{ href: '/models', label: 'Models' },
+		{ href: '/about', label: 'About' },
 	]
 </script>
 

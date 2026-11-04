@@ -2,6 +2,10 @@
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import * as Popover from '#lib/components/ui/popover/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
+	import {
+		getActiveDownloads,
+		watchModelCache,
+	} from '#lib/modelCache.svelte.js'
 	import { playSong } from '#lib/player.svelte.js'
 	import {
 		run,
@@ -14,6 +18,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus'
 	import SettingsIcon from '@lucide/svelte/icons/settings'
 	import SparklesIcon from '@lucide/svelte/icons/sparkles'
+	import { onMount } from 'svelte'
 	import LoadingSongCard from '../lib/components/LoadingSongCard.svelte'
 	import ModelDownload from '../lib/components/ModelDownload.svelte'
 	import SongCard from '../lib/components/SongCard.svelte'
@@ -37,8 +42,12 @@
 	let songs = $derived(
 		run.cards.flatMap((card) => (card.kind === 'song' ? [card.song] : []))
 	)
+	// A download can come from this run or from the Models page.
+	let downloads = $derived(getActiveDownloads())
 
 	let isPlayVisible = $derived(songs.length > 0)
+
+	onMount(watchModelCache)
 
 	function getCardKey(card: RunCard): string {
 		return card.kind === 'loading' ? card.video_id : card.song.video_id
@@ -149,9 +158,9 @@
 			{#if run.phase !== 'idle'}{run.status}{/if}
 		</p>
 
-		{#if run.downloads.length > 0}
+		{#if downloads.length > 0}
 			<ul class={`flex w-full flex-col items-center gap-3 ${REVEAL_CLASS}`}>
-				{#each run.downloads as download (download.model)}
+				{#each downloads as download (download.model)}
 					<li class="flex w-full justify-center">
 						<ModelDownload {download} state={download.state} />
 					</li>

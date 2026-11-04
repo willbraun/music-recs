@@ -2,10 +2,12 @@ import json
 import queue
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from appdb import AppDb
 from fastapi.testclient import TestClient
+from model_download import begin_download, fail_download
 from pydantic import ValidationError
 from taste_profile import TasteProfile
 
@@ -251,3 +253,140 @@ def test_start_run_is_accepted_after_saving_a_taste(client: TestClient) -> None:
     client.put("/api/taste", json={"profile": {"liked_genres": ["Rock"]}})
 
     assert client.post("/api/runs", json={}).status_code == 202
+
+
+def test_process_jobs_runs_a_download_job_for_its_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def fake_download(model_ids: list[str]):
+        calls.append(model_ids)
+        yield {"type": "model_downloaded", "model": model_ids[0]}
+
+    monkeypatch.setattr(api, "download_missing_models", fake_download)
+    jobs: queue.Queue[api.Job] = queue.Queue()
+    job = api.Job(model_id="org/model")
+    jobs.put(job)
+
+    _run_worker(jobs, AppDb(tmp_path / "app.db"))
+    _wait_until_finished(job)
+
+    assert calls == [["org/model"]]
+    assert job.events == [{"type": "model_downloaded", "model": "org/model"}]
+
+
+@pytest.fixture
+def models(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Replaces the Hugging Face cache layer; `downloaded` holds the ids on disk and `removed` the ids deleted."""
+    state = SimpleNamespace(downloaded=set(), removed=[])
+    monkeypatch.setattr(api, "MODEL_IDS", ("org/a", "org/b"))
+    monkeypatch.setattr(api, "is_model_downloaded", lambda model_id: model_id in state.downloaded)
+    monkeypatch.setattr(api, "get_model_size", lambda model_id, downloaded: 100 if downloaded else 200)
+    monkeypatch.setattr(api, "remove_model", state.removed.append)
+    return state
+
+
+def test_list_models_reports_downloaded_state_size_and_progress(client: TestClient, models: SimpleNamespace) -> None:
+    models.downloaded.add("org/a")
+    begin_download("org/b", 200)
+
+    body = client.get("/api/models").json()
+
+    assert body["busy"] is False
+    assert body["items"][0] == {"id": "org/a", "downloaded": True, "size_bytes": 100, "download": None}
+    assert body["items"][1]["downloaded"] is False
+    assert body["items"][1]["size_bytes"] == 200
+    assert body["items"][1]["download"]["state"] == "pending"
+
+
+def test_list_models_does_not_report_a_model_as_downloaded_while_it_downloads(client: TestClient, models: SimpleNamespace) -> None:
+    models.downloaded.add("org/a")
+    begin_download("org/a", 200)
+
+    item = client.get("/api/models").json()["items"][0]
+
+    assert (item["downloaded"], item["download"]["state"]) == (False, "pending")
+
+
+def test_list_models_hides_a_stale_failure_once_the_model_is_downloaded(client: TestClient, models: SimpleNamespace) -> None:
+    fail_download("org/a", "network down")
+    models.downloaded.add("org/a")
+
+    assert client.get("/api/models").json()["items"][0]["download"] is None
+
+
+def test_list_models_is_busy_while_a_job_is_unfinished(client: TestClient, models: SimpleNamespace) -> None:
+    job = api.Job(api.RunRequest())
+    api.app.state.jobs["r1"] = job
+    assert client.get("/api/models").json()["busy"] is True
+
+    job.finish()
+    assert client.get("/api/models").json()["busy"] is False
+
+
+def test_start_model_download_queues_a_job_and_reports_it_pending(client: TestClient, models: SimpleNamespace) -> None:
+    response = client.post("/api/models/org/a/download")
+
+    assert response.status_code == 202
+    assert response.json()["download"]["state"] == "pending"
+    job = api.app.state.queue.get_nowait()
+    assert job.model_id == "org/a" and job.request is None
+    assert list(api.app.state.jobs.values()) == [job]
+
+
+def test_start_model_download_is_idempotent_while_active(client: TestClient, models: SimpleNamespace) -> None:
+    client.post("/api/models/org/a/download")
+    response = client.post("/api/models/org/a/download")
+
+    assert response.status_code == 202
+    assert api.app.state.queue.qsize() == 1
+
+
+def test_start_model_download_retries_after_a_failure(client: TestClient, models: SimpleNamespace) -> None:
+    fail_download("org/a", "network down")
+
+    response = client.post("/api/models/org/a/download")
+
+    assert response.json()["download"]["state"] == "pending"
+    assert api.app.state.queue.qsize() == 1
+
+
+def test_start_model_download_rejects_a_downloaded_model(client: TestClient, models: SimpleNamespace) -> None:
+    models.downloaded.add("org/a")
+
+    response = client.post("/api/models/org/a/download")
+
+    assert (response.status_code, response.json()) == (409, {"detail": "Model is already downloaded"})
+    assert api.app.state.queue.empty()
+
+
+def test_start_model_download_rejects_an_unknown_model(client: TestClient, models: SimpleNamespace) -> None:
+    assert client.post("/api/models/org/nope/download").status_code == 404
+
+
+def test_delete_model_removes_the_cached_files(client: TestClient, models: SimpleNamespace) -> None:
+    models.downloaded.add("org/a")
+
+    response = client.delete("/api/models/org/a")
+
+    assert (response.status_code, models.removed) == (204, ["org/a"])
+
+
+def test_delete_model_is_blocked_while_a_job_is_unfinished(client: TestClient, models: SimpleNamespace) -> None:
+    models.downloaded.add("org/a")
+    api.app.state.jobs["r1"] = api.Job(api.RunRequest())
+
+    response = client.delete("/api/models/org/a")
+
+    assert response.status_code == 409
+    assert isinstance(response.json()["detail"], str)
+    assert models.removed == []
+
+
+def test_delete_model_rejects_a_model_that_is_not_downloaded(client: TestClient, models: SimpleNamespace) -> None:
+    response = client.delete("/api/models/org/a")
+
+    assert (response.status_code, response.json()) == (409, {"detail": "Model is not downloaded"})
+
+
+def test_delete_model_rejects_an_unknown_model(client: TestClient, models: SimpleNamespace) -> None:
+    assert client.delete("/api/models/org/nope").status_code == 404

@@ -141,17 +141,6 @@ describe('handleRunEvent', () => {
 			{ type: 'started', query: null, count: 3, exploration: 50 },
 			'Reading your taste...',
 		],
-		[
-			{
-				type: 'downloading_models',
-				models: [{ model: 'm', total_bytes: 100 }],
-			},
-			'Downloading models (first run only)...',
-		],
-		[
-			{ type: 'downloading_model', model: 'm', total_bytes: 100 },
-			'Downloading models (first run only)...',
-		],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
 		[{ type: 'fetching' }, 'Finding songs...'],
 	] as [RunEvent, string][])('sets the status for %o', (event, status) => {
@@ -224,102 +213,20 @@ describe('handleRunEvent', () => {
 	})
 })
 
-describe('model download', () => {
-	const progress: RunEvent = {
-		type: 'download_progress',
-		model: 'a',
-		downloaded_bytes: 40,
-		total_bytes: 100,
-		bytes_per_second: 10,
-		seconds_remaining: 6,
-	}
-	const announce: RunEvent = {
-		type: 'downloading_models',
-		models: [
-			{ model: 'a', total_bytes: 100 },
-			{ model: 'b', total_bytes: null },
-		],
-	}
-
-	it('lists every model as pending when the downloads are announced', () => {
-		handleRunEvent(announce)
-
-		expect(run.downloads).toEqual([
-			{
-				model: 'a',
-				downloaded_bytes: 0,
-				total_bytes: 100,
-				bytes_per_second: 0,
-				seconds_remaining: null,
-				state: 'pending',
-			},
-			{
-				model: 'b',
-				downloaded_bytes: 0,
-				total_bytes: null,
-				bytes_per_second: 0,
-				seconds_remaining: null,
-				state: 'pending',
-			},
-		])
-	})
-
-	it('marks only the started model as downloading', () => {
-		handleRunEvent(announce)
-		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
-
-		expect(run.downloads.map((d) => d.state)).toEqual([
-			'downloading',
-			'pending',
-		])
-	})
-
-	it('keeps the latest progress per model without changing the status', () => {
-		handleRunEvent(announce)
-		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
-		handleRunEvent(progress)
-
-		expect(run.downloads[0]).toEqual({
+describe('model download events', () => {
+	it('ignores them; progress comes from the shared model state', () => {
+		handleRunEvent({ type: 'started', query: null, count: 3, exploration: 50 })
+		handleRunEvent({
+			type: 'download_progress',
 			model: 'a',
 			downloaded_bytes: 40,
 			total_bytes: 100,
 			bytes_per_second: 10,
 			seconds_remaining: 6,
-			state: 'downloading',
-		})
-		expect(run.downloads[1].downloaded_bytes).toBe(0)
-		expect(run.status).toBe('Downloading models (first run only)...')
-	})
+		} as unknown as RunEvent)
 
-	it('marks a model done and starts the next one', () => {
-		handleRunEvent(announce)
-		handleRunEvent({ type: 'downloading_model', model: 'a', total_bytes: 100 })
-		handleRunEvent({ type: 'model_downloaded', model: 'a' })
-		handleRunEvent({ type: 'downloading_model', model: 'b', total_bytes: null })
-
-		expect(run.downloads.map((d) => d.state)).toEqual(['done', 'downloading'])
-	})
-
-	it.each([
-		[{ type: 'queries', queries: [] }],
-		[{ type: 'fetching' }],
-		[{ type: 'done', analyzed: 0, recommended: 0, count: 1 }],
-		[{ type: 'error', message: 'boom' }],
-	] as [RunEvent][])('clears the downloads on %o', (event) => {
-		handleRunEvent(announce)
-		handleRunEvent(event)
-
-		expect(run.downloads).toEqual([])
-	})
-
-	it('clears the downloads on reset and when a new run starts', async () => {
-		handleRunEvent(announce)
-		resetRun()
-		expect(run.downloads).toEqual([])
-
-		handleRunEvent(announce)
-		await startNewRun(3, 50)
-		expect(run.downloads).toEqual([])
+		expect(run.status).toBe('Reading your taste...')
+		expect(run).not.toHaveProperty('downloads')
 	})
 })
 

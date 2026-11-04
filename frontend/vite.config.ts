@@ -19,6 +19,9 @@ export default defineConfig({
 		svelteTesting(),
 	],
 	server: {
+		fs: {
+			allow: ['..'],
+		},
 		proxy: {
 			// The Python API from api/api.py; it does not serve the frontend. The run events stream is SSE.
 			'/api': 'http://127.0.0.1:8000',

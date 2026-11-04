@@ -26,11 +26,12 @@ export interface ModelDownload {
 	seconds_remaining: number | null
 }
 
-// pending: queued behind an earlier download. A run downloads its missing models one at a time.
-export type ModelDownloadState = 'pending' | 'downloading' | 'done'
+// pending: queued behind an earlier run or download; the API runs one at a time.
+export type ModelDownloadState = 'pending' | 'downloading'
 
 export type ModelDownloadItem = ModelDownload & { state: ModelDownloadState }
 
+// Download progress is not part of RunEvent: runs and the Models page share it through GET /api/models.
 export type RunEvent =
 	| {
 			type: 'started'
@@ -38,13 +39,6 @@ export type RunEvent =
 			count: number
 			exploration: number
 	  }
-	| {
-			type: 'downloading_models'
-			models: { model: string; total_bytes: number | null }[]
-	  }
-	| { type: 'downloading_model'; model: string; total_bytes: number | null }
-	| ({ type: 'download_progress' } & ModelDownload)
-	| { type: 'model_downloaded'; model: string }
 	| { type: 'queries'; queries: { query: string; tier: Tier | null }[] }
 	| { type: 'fetching' }
 	| {
@@ -147,4 +141,51 @@ export async function saveTaste(profile: TasteProfile): Promise<Taste> {
 
 export function openRunEvents(id: string): EventSource {
 	return new EventSource(`/api/runs/${encodeURIComponent(id)}/events`)
+}
+
+// A failed download stays until the next attempt; the others end when the download finishes.
+export interface ModelDownloadStatus extends Omit<ModelDownload, 'model'> {
+	state: ModelDownloadState | 'failed'
+	error: string | null
+}
+
+export interface ModelStatus {
+	id: string
+	downloaded: boolean
+	// Null when unknown, such as when the Hugging Face Hub is unreachable.
+	size_bytes: number | null
+	download: ModelDownloadStatus | null
+}
+
+export interface ModelList {
+	items: ModelStatus[]
+	// A run or download is queued or running, so models cannot be removed.
+	busy: boolean
+}
+
+export async function listModels(): Promise<ModelList> {
+	const response = await fetch('/api/models')
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+// Ids contain a slash, which the API route takes as part of the path.
+function getModelPath(id: string): string {
+	return `/api/models/${id.split('/').map(encodeURIComponent).join('/')}`
+}
+
+export async function startModelDownload(id: string): Promise<ModelStatus> {
+	const response = await fetch(`${getModelPath(id)}/download`, {
+		method: 'POST',
+	})
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+export async function removeModel(id: string): Promise<void> {
+	const response = await fetch(getModelPath(id), { method: 'DELETE' })
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
 }

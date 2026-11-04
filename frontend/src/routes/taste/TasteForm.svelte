@@ -117,7 +117,7 @@
 			</Alert.Root>
 		{/if}
 		<div class="flex justify-end">
-			<Button type="submit" disabled={!canSave}>Save taste</Button>
+			<Button type="submit" disabled={!canSave}>Save Taste</Button>
 		</div>
 	</div>
 </form>

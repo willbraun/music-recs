@@ -3,10 +3,11 @@ from pathlib import Path
 from typing import NamedTuple
 
 import torch
+from model_download import ANALYSIS_MODEL_ID
 from transformers import AutoProcessor, MusicFlamingoForConditionalGeneration
 from transformers.models.musicflamingo import modeling_musicflamingo
 
-MODEL_ID = "nvidia/music-flamingo-2601-hf"
+MODEL_ID = ANALYSIS_MODEL_ID
 PROMPT = "You are an expert music recommender. Evaluate whether you would recommend the given song to me based on my musical taste. My taste is:"
 OUTPUT_FORMAT = "Respond with exactly one word: YES or NO (YES only if I would like this song)."
 
