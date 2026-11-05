@@ -10,7 +10,6 @@ import torch
 from model_download import QUERY_MODEL_ID
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-MODEL_ID = QUERY_MODEL_ID
 MAX_NEW_TOKENS = 300
 TEMPERATURE = 0.9
 
@@ -46,8 +45,8 @@ def allocate_tiers(n: int, exploration: int) -> list[str]:
 
 @lru_cache(maxsize=1)
 def _load():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype="auto", device_map="auto")
+    tokenizer = AutoTokenizer.from_pretrained(QUERY_MODEL_ID)
+    model = AutoModelForCausalLM.from_pretrained(QUERY_MODEL_ID, dtype="auto", device_map="auto")
     return tokenizer, model
 
 
