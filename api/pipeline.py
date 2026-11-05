@@ -11,7 +11,6 @@ from model_download import (begin_download, download_model, fail_download,
                             finish_download, get_download_size,
                             is_model_downloaded, update_download)
 
-MAX_QUERIES = 6
 CANDIDATES_PER_RECOMMENDATION = 2
 MAX_SEARCH_RESULTS_PER_QUERY = 300
 # A lead artist with this many songs among the last WINDOW recommended is avoided: queries steer away, their songs go last.
@@ -129,9 +128,8 @@ def run(
     Without a `query`, search queries are generated from the taste at the given `exploration` level (0-100).
     """
     # Heavy imports are deferred so --help and server startup stay fast.
-    from analyze import MODEL_ID as ANALYSIS_MODEL_ID
     from analyze import analyze
-    from queries import MODEL_ID as QUERY_MODEL_ID
+    from model_download import ANALYSIS_MODEL_ID, QUERY_MODEL_ID
     from queries import generate_queries
 
     # 1. Load the current taste and the ids that must not be recommended again.
@@ -152,7 +150,7 @@ def run(
     candidate_limit = count * CANDIDATES_PER_RECOMMENDATION
     if query is None:
         generated = generate_queries(
-            taste, saved_taste.profile.liked_artists, exploration, min(candidate_limit, MAX_QUERIES), frequent_artists
+            taste, saved_taste.profile.liked_artists, exploration, candidate_limit, frequent_artists
         )
         searches = [(g.query, g.tier) for g in generated]
         yield {"type": "queries", "queries": [{"query": q, "tier": tier} for q, tier in searches]}

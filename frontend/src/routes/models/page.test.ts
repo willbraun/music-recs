@@ -34,7 +34,7 @@ vi.mock('#lib/modelCache.svelte.js', () => ({
 import Page from './+page.svelte'
 
 const QWEN = 'Qwen/Qwen2.5-3B-Instruct'
-const FLAMINGO = 'nvidia/music-flamingo-2601-hf'
+const MOSS = 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
 
 function makeStatus(
 	id: string,
@@ -57,7 +57,7 @@ beforeEach(() => {
 	modelCache.status = 'ready'
 	modelCache.items = [
 		makeStatus(QWEN, { downloaded: true }),
-		makeStatus(FLAMINGO),
+		makeStatus(MOSS),
 	]
 	modelCache.busy = false
 	modelCache.error = null
@@ -77,7 +77,7 @@ describe('models page', () => {
 			screen.getByRole('heading', { name: 'Qwen 2.5 3B Instruct' })
 		).toBeInTheDocument()
 		expect(
-			screen.getByRole('heading', { name: 'Music Flamingo 2601' })
+			screen.getByRole('heading', { name: 'MOSS Music 8B Instruct' })
 		).toBeInTheDocument()
 		expect(screen.getByText('Downloaded')).toBeInTheDocument()
 		expect(screen.getByText('Not downloaded')).toBeInTheDocument()
@@ -120,10 +120,10 @@ describe('models page', () => {
 		render(Page)
 
 		await userEvent.click(
-			screen.getByRole('button', { name: 'Download Music Flamingo 2601' })
+			screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct' })
 		)
 
-		expect(downloadModelMock).toHaveBeenCalledWith(FLAMINGO)
+		expect(downloadModelMock).toHaveBeenCalledWith(MOSS)
 	})
 
 	it('removes the model after confirming', async () => {
@@ -149,7 +149,7 @@ describe('models page', () => {
 	})
 
 	it('skips a model the page has no details for', () => {
-		modelCache.items = [makeStatus('org/unknown'), makeStatus(FLAMINGO)]
+		modelCache.items = [makeStatus('org/unknown'), makeStatus(MOSS)]
 		render(Page)
 
 		expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1)

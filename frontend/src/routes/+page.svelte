@@ -47,7 +47,17 @@
 
 	let isPlayVisible = $derived(songs.length > 0)
 
+	// Content that survived navigation is shown as-is; only new content animates.
+	const restoredKeys = new Set(run.cards.map(getCardKey))
+	const wasGridVisible = run.phase !== 'idle' && run.cards.length > 0
+	const wasDownloadsVisible = getActiveDownloads().length > 0
+	const gridRevealClass = wasGridVisible ? '' : REVEAL_CLASS
+
 	onMount(watchModelCache)
+
+	function getCardRevealClass(card: RunCard): string {
+		return restoredKeys.has(getCardKey(card)) ? '' : REVEAL_CLASS
+	}
 
 	function getCardKey(card: RunCard): string {
 		return card.kind === 'loading' ? card.video_id : card.song.video_id
@@ -159,7 +169,9 @@
 		</p>
 
 		{#if downloads.length > 0}
-			<ul class={`flex w-full flex-col items-center gap-3 ${REVEAL_CLASS}`}>
+			<ul
+				class={`flex w-full flex-col items-center gap-3 ${wasDownloadsVisible ? '' : REVEAL_CLASS}`}
+			>
 				{#each downloads as download (download.model)}
 					<li class="flex w-full justify-center">
 						<ModelDownload {download} state={download.state} />
@@ -174,7 +186,7 @@
 			<div class="flex items-center justify-between">
 				<h2
 					id="recommended-heading"
-					class={`text-2xl font-semibold ${REVEAL_CLASS}`}
+					class={`text-2xl font-semibold ${gridRevealClass}`}
 				>
 					Recommended for you
 				</h2>
@@ -182,7 +194,7 @@
 					<Button
 						type="button"
 						variant="outline"
-						class={REVEAL_CLASS}
+						class={gridRevealClass}
 						onclick={playAll}
 					>
 						<PlayIcon />
@@ -195,7 +207,7 @@
 				aria-labelledby="recommended-heading"
 			>
 				{#each run.cards as card, index (getCardKey(card))}
-					<li class={REVEAL_CLASS}>
+					<li class={getCardRevealClass(card)}>
 						{#if card.kind === 'loading'}
 							<LoadingSongCard
 								title={card.title}

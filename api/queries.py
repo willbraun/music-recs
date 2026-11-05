@@ -10,7 +10,8 @@ import torch
 from model_download import QUERY_MODEL_ID
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-MAX_NEW_TOKENS = 300
+# Budget for one JSON string and its separator; the array needs room for every query.
+TOKENS_PER_QUERY = 24
 TEMPERATURE = 0.9
 
 TIER_INSTRUCTIONS = {
@@ -67,7 +68,7 @@ def _build_prompt(taste: str, tiers: list[str], avoid_artists: list[str]) -> str
         f"My musical taste is: {taste}\n\n"
         f"Write {len(tiers)} search queries for finding songs on YouTube Music, one per line below. "
         "Each query is an artist name with no explanation. "
-        "Recommend artists, not specific songs or genres.\n"
+        "Recommend artists, not specific songs or genres, and never repeat an artist.\n"
         "Never go against the exclusions in my taste.\n"
         f"{avoid}"
         f"{lines}\n\n"
@@ -90,13 +91,13 @@ def _get_fallback_queries(taste: str, liked_artists: list[str]) -> list[str]:
     return list(liked_artists) or [taste[:100]]
 
 
-def _generate_text(prompt: str) -> str:
+def _generate_text(prompt: str, n: int) -> str:
     tokenizer, model = _load()
     messages = [{"role": "user", "content": prompt}]
     inputs = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, return_dict=True, return_tensors="pt"
     ).to(model.device)
-    outputs = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=True, temperature=TEMPERATURE)
+    outputs = model.generate(**inputs, max_new_tokens=n * TOKENS_PER_QUERY, do_sample=True, temperature=TEMPERATURE)
     return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
@@ -112,7 +113,7 @@ def generate_queries(
     avoid = avoid_artists or []
     avoid_keys = {artist.casefold() for artist in avoid}
     tiers = allocate_tiers(n, exploration)
-    text = _generate_text(_build_prompt(taste, tiers, avoid))
+    text = _generate_text(_build_prompt(taste, tiers, avoid), n)
     unload_model()
 
     generated: list[GeneratedQuery] = []

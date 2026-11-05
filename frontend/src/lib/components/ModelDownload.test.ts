@@ -5,7 +5,7 @@ import ModelDownloadPanel from './ModelDownload.svelte'
 
 function makeDownload(overrides: Partial<ModelDownload> = {}): ModelDownload {
 	return {
-		model: 'nvidia/music-flamingo-2601-hf',
+		model: 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit',
 		downloaded_bytes: 1_200_000_000,
 		total_bytes: 4_800_000_000,
 		bytes_per_second: 12_300_000,
@@ -20,9 +20,9 @@ describe('ModelDownload', () => {
 	it('shows the friendly model name', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
-		expect(screen.getByText('Music Flamingo 2601')).toBeInTheDocument()
+		expect(screen.getByText('MOSS Music 8B Instruct')).toBeInTheDocument()
 		expect(
-			screen.queryByText('nvidia/music-flamingo-2601-hf')
+			screen.queryByText('FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit')
 		).not.toBeInTheDocument()
 	})
 
@@ -30,11 +30,11 @@ describe('ModelDownload', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
 		const link = screen.getByRole('link', {
-			name: 'Open Music Flamingo 2601 on Hugging Face',
+			name: 'Open MOSS Music 8B Instruct on Hugging Face',
 		})
 		expect(link).toHaveAttribute(
 			'href',
-			'https://huggingface.co/nvidia/music-flamingo-2601-hf'
+			'https://huggingface.co/FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
 		)
 		expect(link).toHaveAttribute('target', '_blank')
 	})
@@ -54,7 +54,7 @@ describe('ModelDownload', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
 		const bar = screen.getByRole('progressbar', {
-			name: 'Downloading Music Flamingo 2601',
+			name: 'Downloading MOSS Music 8B Instruct',
 		})
 		expect(bar).toHaveAttribute('aria-valuenow', '25')
 		expect(screen.getByText('25%')).toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('ModelDownload', () => {
 		})
 
 		const bar = screen.getByRole('progressbar', {
-			name: 'Waiting to download Music Flamingo 2601',
+			name: 'Waiting to download MOSS Music 8B Instruct',
 		})
 		expect(bar).toHaveAttribute('aria-valuenow', '0')
 		expect(screen.getByText(/Waiting/)).toBeInTheDocument()

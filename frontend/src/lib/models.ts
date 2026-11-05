@@ -15,9 +15,9 @@ export const MODELS: ModelInfo[] = [
 			'Translates your taste into search queries for artists to look up.',
 	},
 	{
-		id: 'nvidia/music-flamingo-2601-hf',
-		name: 'Music Flamingo 2601',
-		url: 'https://huggingface.co/nvidia/music-flamingo-2601-hf',
+		id: 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit',
+		name: 'MOSS Music 8B Instruct',
+		url: 'https://huggingface.co/FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit',
 		purpose:
 			'Listens to a clip of each song and decides whether you would like it, with a confidence score.',
 	},

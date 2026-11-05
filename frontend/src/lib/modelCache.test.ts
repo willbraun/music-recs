@@ -26,7 +26,7 @@ import {
 	watchModelCache,
 } from './modelCache.svelte'
 
-const FLAMINGO = 'nvidia/music-flamingo-2601-hf'
+const MOSS = 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
 const QWEN = 'Qwen/Qwen2.5-3B-Instruct'
 
 function makeStatus(
@@ -68,7 +68,7 @@ beforeEach(() => {
 	modelCache.removing = []
 	run.phase = 'idle'
 	listModelsMock.mockResolvedValue(
-		makeList([makeStatus(QWEN), makeStatus(FLAMINGO)])
+		makeList([makeStatus(QWEN), makeStatus(MOSS)])
 	)
 })
 
@@ -113,23 +113,23 @@ describe('loadModelCache', () => {
 
 	it('toasts when a download that was running fails', async () => {
 		listModelsMock.mockResolvedValueOnce(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading() })])
+			makeList([makeStatus(MOSS, { download: makeDownloading() })])
 		)
 		await loadModelCache()
 		listModelsMock.mockResolvedValueOnce(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading('failed') })])
+			makeList([makeStatus(MOSS, { download: makeDownloading('failed') })])
 		)
 
 		await loadModelCache()
 
 		expect(toastMock.error).toHaveBeenCalledWith(
-			'Music Flamingo 2601: network down'
+			'MOSS Music 8B Instruct: network down'
 		)
 	})
 
 	it('does not toast a failure that was already there on load', async () => {
 		listModelsMock.mockResolvedValue(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading('failed') })])
+			makeList([makeStatus(MOSS, { download: makeDownloading('failed') })])
 		)
 
 		await loadModelCache()
@@ -143,14 +143,14 @@ describe('getActiveDownloads', () => {
 		listModelsMock.mockResolvedValue(
 			makeList([
 				makeStatus(QWEN, { download: makeDownloading('pending') }),
-				makeStatus(FLAMINGO, { download: makeDownloading() }),
+				makeStatus(MOSS, { download: makeDownloading() }),
 			])
 		)
 		await loadModelCache()
 
 		expect(getActiveDownloads()).toMatchObject([
 			{ model: QWEN, state: 'pending', total_bytes: 1000 },
-			{ model: FLAMINGO, state: 'downloading', downloaded_bytes: 400 },
+			{ model: MOSS, state: 'downloading', downloaded_bytes: 400 },
 		])
 	})
 
@@ -158,7 +158,7 @@ describe('getActiveDownloads', () => {
 		listModelsMock.mockResolvedValue(
 			makeList([
 				makeStatus(QWEN, { downloaded: true }),
-				makeStatus(FLAMINGO, { download: makeDownloading('failed') }),
+				makeStatus(MOSS, { download: makeDownloading('failed') }),
 			])
 		)
 		await loadModelCache()
@@ -171,13 +171,13 @@ describe('downloadModel', () => {
 	it('shows the returned pending state right away', async () => {
 		await loadModelCache()
 		startModelDownloadMock.mockResolvedValue(
-			makeStatus(FLAMINGO, { download: makeDownloading('pending') })
+			makeStatus(MOSS, { download: makeDownloading('pending') })
 		)
 
-		await downloadModel(FLAMINGO)
+		await downloadModel(MOSS)
 
-		expect(startModelDownloadMock).toHaveBeenCalledWith(FLAMINGO)
-		expect(getActiveDownloads().map((item) => item.model)).toEqual([FLAMINGO])
+		expect(startModelDownloadMock).toHaveBeenCalledWith(MOSS)
+		expect(getActiveDownloads().map((item) => item.model)).toEqual([MOSS])
 	})
 
 	it('toasts the server message and reloads when the request is rejected', async () => {
@@ -187,7 +187,7 @@ describe('downloadModel', () => {
 		)
 		listModelsMock.mockClear()
 
-		await downloadModel(FLAMINGO)
+		await downloadModel(MOSS)
 
 		expect(toastMock.error).toHaveBeenCalledWith('Model is already downloaded')
 		expect(listModelsMock).toHaveBeenCalled()
@@ -200,13 +200,13 @@ describe('removeModelFiles', () => {
 		removeModelMock.mockResolvedValue(undefined)
 		listModelsMock.mockClear()
 
-		const removal = removeModelFiles(FLAMINGO)
-		expect(modelCache.removing).toEqual([FLAMINGO])
+		const removal = removeModelFiles(MOSS)
+		expect(modelCache.removing).toEqual([MOSS])
 		await removal
 
-		expect(removeModelMock).toHaveBeenCalledWith(FLAMINGO)
+		expect(removeModelMock).toHaveBeenCalledWith(MOSS)
 		expect(toastMock.success).toHaveBeenCalledWith(
-			'Removed Music Flamingo 2601'
+			'Removed MOSS Music 8B Instruct'
 		)
 		expect(listModelsMock).toHaveBeenCalledOnce()
 		expect(modelCache.removing).toEqual([])
@@ -218,7 +218,7 @@ describe('removeModelFiles', () => {
 			new Error('Wait for the current run or download to finish')
 		)
 
-		await removeModelFiles(FLAMINGO)
+		await removeModelFiles(MOSS)
 
 		expect(toastMock.error).toHaveBeenCalledWith(
 			'Wait for the current run or download to finish'
@@ -231,8 +231,8 @@ describe('removeModelFiles', () => {
 		await loadModelCache()
 		removeModelMock.mockReturnValue(new Promise(() => {}))
 
-		void removeModelFiles(FLAMINGO)
-		await removeModelFiles(FLAMINGO)
+		void removeModelFiles(MOSS)
+		await removeModelFiles(MOSS)
 
 		expect(removeModelMock).toHaveBeenCalledTimes(1)
 	})
@@ -260,7 +260,7 @@ describe('watchModelCache', () => {
 
 	it('polls every second while a download is pending or downloading', async () => {
 		listModelsMock.mockResolvedValue(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading() })])
+			makeList([makeStatus(MOSS, { download: makeDownloading() })])
 		)
 		const stop = watchModelCache()
 		await vi.advanceTimersByTimeAsync(0)
@@ -287,12 +287,12 @@ describe('watchModelCache', () => {
 
 	it('stops polling once the download finishes', async () => {
 		listModelsMock.mockResolvedValueOnce(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading() })])
+			makeList([makeStatus(MOSS, { download: makeDownloading() })])
 		)
 		const stop = watchModelCache()
 		await vi.advanceTimersByTimeAsync(0)
 		listModelsMock.mockResolvedValue(
-			makeList([makeStatus(FLAMINGO, { downloaded: true })])
+			makeList([makeStatus(MOSS, { downloaded: true })])
 		)
 
 		await tick()
@@ -306,7 +306,7 @@ describe('watchModelCache', () => {
 
 	it('does not start a request while the previous one is still running', async () => {
 		listModelsMock.mockResolvedValueOnce(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading() })])
+			makeList([makeStatus(MOSS, { download: makeDownloading() })])
 		)
 		const stop = watchModelCache()
 		await vi.advanceTimersByTimeAsync(0)
@@ -328,7 +328,7 @@ describe('watchModelCache', () => {
 
 	it('shares one timer between watchers and stops after the last one leaves', async () => {
 		listModelsMock.mockResolvedValue(
-			makeList([makeStatus(FLAMINGO, { download: makeDownloading() })])
+			makeList([makeStatus(MOSS, { download: makeDownloading() })])
 		)
 		const stopFirst = watchModelCache()
 		const stopSecond = watchModelCache()

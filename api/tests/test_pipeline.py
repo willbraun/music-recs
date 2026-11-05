@@ -396,7 +396,7 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
     assert queries_event["queries"] == [{"query": "generated", "tier": "adjacent"}]
     taste_text = "I like these genres: Rock. My favorite artists are Flume."
     assert stub_pipeline.generated == [
-        (taste_text, ["Flume"], 80, min(1 * pipeline.CANDIDATES_PER_RECOMMENDATION, pipeline.MAX_QUERIES))
+        (taste_text, ["Flume"], 80, 1 * pipeline.CANDIDATES_PER_RECOMMENDATION)
     ]
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert next(e for e in events if e["type"] == "scored")["tier"] == "adjacent"
@@ -405,13 +405,13 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
 def test_run_requires_only_the_analysis_model_when_a_query_is_given(appdb: AppDb, stub_pipeline) -> None:
     list(pipeline.run("q", 1, 50, appdb))
 
-    assert stub_pipeline.required_models == ["nvidia/music-flamingo-2601-hf"]
+    assert stub_pipeline.required_models == ["FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
 
 
 def test_run_requires_both_models_without_a_query(appdb: AppDb, stub_pipeline) -> None:
     list(pipeline.run(None, 1, 50, appdb))
 
-    assert stub_pipeline.required_models == ["Qwen/Qwen2.5-3B-Instruct", "nvidia/music-flamingo-2601-hf"]
+    assert stub_pipeline.required_models == ["Qwen/Qwen2.5-3B-Instruct", "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
 
 
 def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monkeypatch: pytest.MonkeyPatch) -> None:

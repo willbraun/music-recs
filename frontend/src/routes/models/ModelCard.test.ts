@@ -51,7 +51,7 @@ describe('ModelCard', () => {
 		renderCard(makeStatus())
 
 		expect(
-			screen.getByRole('heading', { name: 'Music Flamingo 2601' })
+			screen.getByRole('heading', { name: 'MOSS Music 8B Instruct' })
 		).toBeInTheDocument()
 		expect(screen.getByText(info.purpose)).toBeInTheDocument()
 		expect(screen.getByText('16.5 GB')).toBeInTheDocument()
@@ -61,11 +61,11 @@ describe('ModelCard', () => {
 		renderCard(makeStatus())
 
 		const link = screen.getByRole('link', {
-			name: 'Open Music Flamingo 2601 on Hugging Face',
+			name: 'Open MOSS Music 8B Instruct on Hugging Face',
 		})
 		expect(link).toHaveAttribute(
 			'href',
-			'https://huggingface.co/nvidia/music-flamingo-2601-hf'
+			'https://huggingface.co/FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
 		)
 		expect(link).toHaveAttribute('target', '_blank')
 	})
@@ -85,7 +85,7 @@ describe('ModelCard', () => {
 				screen.queryByRole('button', { name: /Remove/ })
 			).not.toBeInTheDocument()
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Download Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct' })
 			)
 			expect(onDownload).toHaveBeenCalledOnce()
 		})
@@ -107,7 +107,7 @@ describe('ModelCard', () => {
 			expect(screen.getByText('Downloading')).toBeInTheDocument()
 			expect(
 				screen.getByRole('progressbar', {
-					name: 'Downloading Music Flamingo 2601',
+					name: 'Downloading MOSS Music 8B Instruct',
 				})
 			).toHaveAttribute('aria-valuenow', '25')
 			expect(screen.getByText(/12\.3 MB\/s/)).toBeInTheDocument()
@@ -124,7 +124,7 @@ describe('ModelCard', () => {
 			expect(screen.getByText('Queued')).toBeInTheDocument()
 			expect(
 				screen.getByRole('progressbar', {
-					name: 'Waiting to download Music Flamingo 2601',
+					name: 'Waiting to download MOSS Music 8B Instruct',
 				})
 			).toHaveAttribute('aria-valuenow', '0')
 		})
@@ -148,7 +148,7 @@ describe('ModelCard', () => {
 			expect(screen.getByText('Download failed')).toBeInTheDocument()
 			expect(screen.getByRole('alert')).toHaveTextContent('network down')
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Retry Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Retry MOSS Music 8B Instruct' })
 			)
 			expect(onDownload).toHaveBeenCalledOnce()
 		})
@@ -163,18 +163,18 @@ describe('ModelCard', () => {
 				screen.queryByRole('button', { name: /Download|Retry/ })
 			).not.toBeInTheDocument()
 			expect(
-				screen.getByRole('button', { name: 'Remove Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct' })
 			).toBeEnabled()
 		})
 
 		it('removes only after confirming', async () => {
 			renderCard(makeStatus({ downloaded: true }))
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Remove Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct' })
 			)
 
 			const dialog = await screen.findByRole('dialog', {
-				name: 'Remove Music Flamingo 2601?',
+				name: 'Remove MOSS Music 8B Instruct?',
 			})
 			expect(dialog).toHaveTextContent('16.5 GB')
 			expect(onRemove).not.toHaveBeenCalled()
@@ -190,7 +190,7 @@ describe('ModelCard', () => {
 		it('keeps the model when the confirmation is cancelled', async () => {
 			renderCard(makeStatus({ downloaded: true }))
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Remove Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct' })
 			)
 
 			await userEvent.click(
@@ -207,7 +207,7 @@ describe('ModelCard', () => {
 			renderCard(makeStatus({ downloaded: true }), { isBusy: true })
 
 			expect(
-				screen.getByRole('button', { name: 'Remove Music Flamingo 2601' })
+				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct' })
 			).toBeDisabled()
 			expect(
 				screen.getByText('Available once the current run or download finishes.')

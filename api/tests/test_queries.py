@@ -64,7 +64,7 @@ def stub_model(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_generate_queries_pairs_parsed_queries_with_tiers(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B"]')
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: '["A", "B"]')
 
     result = generate_queries("taste", [], 0, 2)
 
@@ -74,7 +74,7 @@ def test_generate_queries_pairs_parsed_queries_with_tiers(monkeypatch: pytest.Mo
 
 @pytest.mark.usefixtures("stub_model")
 def test_generate_queries_pads_with_fallback_when_model_returns_too_few(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: "garbage")
     taste = "My favorite artists are Flume."
 
     result = generate_queries(taste, ["Flume"], 100, 3)
@@ -84,7 +84,7 @@ def test_generate_queries_pads_with_fallback_when_model_returns_too_few(monkeypa
 
 @pytest.mark.usefixtures("stub_model")
 def test_generate_queries_drops_duplicates_and_pads_with_unused_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["Flume", "flume", "Muse"]')
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: '["Flume", "flume", "Muse"]')
 
     result = generate_queries("taste", ["FLUME", "Tame Impala"], 0, 3)
 
@@ -97,14 +97,14 @@ def test_generate_queries_drops_duplicates_and_pads_with_unused_fallbacks(monkey
 
 @pytest.mark.usefixtures("stub_model")
 def test_generate_queries_ignores_extra_queries(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: '["A", "B", "C"]')
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: '["A", "B", "C"]')
 
     assert [g.query for g in generate_queries("taste", [], 0, 2)] == ["A", "B"]
 
 
 def test_generate_queries_asks_model_to_avoid_artists_and_drops_them(monkeypatch: pytest.MonkeyPatch, stub_model: list[bool]) -> None:
     prompts: list[str] = []
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: prompts.append(prompt) or '["Flume", "Muse"]')
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: prompts.append(prompt) or '["Flume", "Muse"]')
 
     result = generate_queries("taste", [], 0, 2, ["flume"])
 
@@ -114,7 +114,7 @@ def test_generate_queries_asks_model_to_avoid_artists_and_drops_them(monkeypatch
 
 @pytest.mark.usefixtures("stub_model")
 def test_generate_queries_uses_avoided_fallback_artists_last(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(queries, "_generate_text", lambda prompt: "garbage")
+    monkeypatch.setattr(queries, "_generate_text", lambda prompt, n: "garbage")
 
     result = generate_queries("taste", ["Flume", "Muse"], 0, 2, ["Flume"])
 

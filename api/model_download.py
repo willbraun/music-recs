@@ -3,9 +3,9 @@ import time
 from collections import deque
 from typing import Iterator
 
-# Plain constants so listing models does not import torch; analyze.py and queries.py load these ids.
+# Plain constants so listing models does not import torch or mlx; analyze.py and queries.py load these ids.
 QUERY_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
-ANALYSIS_MODEL_ID = "nvidia/music-flamingo-2601-hf"
+ANALYSIS_MODEL_ID = "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"
 MODEL_IDS = (QUERY_MODEL_ID, ANALYSIS_MODEL_ID)
 
 POLL_SECONDS = 1.0

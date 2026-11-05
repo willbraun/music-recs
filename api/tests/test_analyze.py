@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import analyze
+import mlx.core as mx
 import pytest
-import torch
 
 
 @pytest.mark.parametrize(
@@ -20,51 +20,38 @@ def test_pick_guidance_by_exploration_level(exploration: int, expected: str) -> 
     assert analyze._pick_guidance(exploration) == expected
 
 
-def test_apply_rotary_time_emb_rotates_leading_dims_and_keeps_dtype(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(analyze.modeling_musicflamingo, "rotate_half", lambda x: -x)
-    hidden = torch.ones(1, 1, 4, dtype=torch.bfloat16)
-    cos = torch.full((1, 1, 2), 2.0)
-    sin = torch.full((1, 1, 2), 0.5)
-
-    result = analyze.apply_rotary_time_emb(hidden, cos, sin)
-
-    assert result.dtype == torch.bfloat16
-    # Rotated dims: 1*2 + (-1)*0.5 = 1.5; the remaining dims pass through.
-    assert result.tolist() == [[[1.5, 1.5, 1.0, 1.0]]]
-
-
-class _FakeInputs(dict):
-    def to(self, _device):
-        return self
-
-
 class _FakeProcessor:
     def __init__(self) -> None:
-        self.conversation = None
+        self.call = None
 
-    def apply_chat_template(self, conversation, **_kwargs) -> _FakeInputs:
-        self.conversation = conversation
-        return _FakeInputs(input_features=torch.zeros(1))
+    def __call__(self, *, text, audio):
+        self.call = {"text": text, "audio": audio}
+        return "processed"
 
 
 class _FakeModel:
-    device = "cpu"
-    dtype = torch.float32
-
     def __init__(self, yes_logit: float, no_logit: float) -> None:
-        self._logits = torch.zeros(1, 1, 10)
-        self._logits[0, -1, 1] = yes_logit
-        self._logits[0, -1, 2] = no_logit
+        logits = [0.0] * 10
+        logits[1], logits[2] = yes_logit, no_logit
+        self._logits = mx.array([[logits]])
+        self.processor = _FakeProcessor()
 
-    def __call__(self, **_inputs):
-        return type("Output", (), {"logits": self._logits})()
+    def _ensure_processor(self) -> _FakeProcessor:
+        return self.processor
+
+    def _build_prompt_embeddings(self, processed):
+        assert processed == "processed"
+        return mx.zeros(1, dtype=mx.int32), mx.zeros((1, 1, 1)), None, 1
+
+    def __call__(self, _ids, **_kwargs):
+        return self._logits
 
 
 def _stub_model(monkeypatch: pytest.MonkeyPatch, yes_logit: float, no_logit: float) -> _FakeProcessor:
-    processor = _FakeProcessor()
-    monkeypatch.setattr(analyze, "_load", lambda: (processor, _FakeModel(yes_logit, no_logit)))
+    model = _FakeModel(yes_logit, no_logit)
+    monkeypatch.setattr(analyze, "_load", lambda: model)
     monkeypatch.setattr(analyze, "_get_answer_token_ids", lambda: (1, 2))
-    return processor
+    return model.processor
 
 
 def test_analyze_reports_yes_with_confidence(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,7 +77,6 @@ def test_analyze_prompt_includes_taste_guidance_and_audio(monkeypatch: pytest.Mo
 
     analyze.analyze(Path("clip.wav"), "my taste", 0)
 
-    text, audio = processor.conversation[0]["content"]
-    assert "my taste" in text["text"]
-    assert analyze.STRICT_GUIDANCE in text["text"]
-    assert audio == {"type": "audio", "path": "clip.wav"}
+    assert "my taste" in processor.call["text"]
+    assert analyze.STRICT_GUIDANCE in processor.call["text"]
+    assert processor.call["audio"] == "clip.wav"
