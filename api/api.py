@@ -14,7 +14,7 @@ from model_download import (MODEL_IDS, begin_download, get_download,
                             get_model_size, is_download_active,
                             is_model_downloaded, remove_model)
 from pipeline import NO_TASTE_MESSAGE, download_missing_models, run
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field
 from taste_profile import Taste, TasteProfile, normalize_taste
 
 # The API only serves /api on 127.0.0.1 with no authentication; the frontend runs separately and proxies /api here.
@@ -24,7 +24,6 @@ DEFAULT_PAGE_SIZE = 50
 
 
 class RunRequest(BaseModel):
-    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
     count: int = Field(3, ge=1, le=50)
     exploration: int = Field(50, ge=0, le=100)
 
@@ -58,7 +57,7 @@ def _generate_events(job: Job, appdb: AppDb) -> Iterator[dict]:
     if job.model_id is not None:
         return download_missing_models([job.model_id])
     assert job.request is not None
-    return run(job.request.query, job.request.count, job.request.exploration, appdb)
+    return run(job.request.count, job.request.exploration, appdb)
 
 
 def _process_jobs(jobs: "queue.Queue[Job]", appdb: AppDb) -> None:

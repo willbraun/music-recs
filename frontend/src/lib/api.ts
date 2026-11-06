@@ -35,11 +35,10 @@ export type ModelDownloadItem = ModelDownload & { state: ModelDownloadState }
 export type RunEvent =
 	| {
 			type: 'started'
-			query: string | null
 			count: number
 			exploration: number
 	  }
-	| { type: 'queries'; queries: { query: string; tier: Tier | null }[] }
+	| { type: 'queries'; queries: { query: string; tier: Tier }[] }
 	| { type: 'fetching' }
 	| {
 			type: 'analyzing'
@@ -50,11 +49,11 @@ export type RunEvent =
 			artist: string
 			url: string
 			query: string | null
-			tier: Tier | null
+			tier: Tier
 			thumbnail_url?: string
 			album_art_url?: string | null
 	  }
-	| ({ type: 'scored'; index: number; tier: Tier | null } & Song)
+	| ({ type: 'scored'; index: number; tier: Tier } & Song)
 	| { type: 'done'; analyzed: number; recommended: number; count: number }
 	| { type: 'error'; message: string }
 

@@ -41,11 +41,11 @@ class FakeEventSource {
 function makeSong(
 	video_id: string,
 	recommended = true
-): Song & { type: 'scored'; index: number; tier: null } {
+): Song & { type: 'scored'; index: number; tier: 'familiar' } {
 	return {
 		type: 'scored',
 		index: 1,
-		tier: null,
+		tier: 'familiar',
 		video_id,
 		title: `Title ${video_id}`,
 		artist: `Artist ${video_id}`,
@@ -66,7 +66,7 @@ function makeAnalyzing(video_id: string): RunEvent {
 		artist: `Artist ${video_id}`,
 		url: `https://www.youtube.com/watch?v=${video_id}`,
 		query: null,
-		tier: null,
+		tier: 'familiar',
 	}
 }
 
@@ -138,7 +138,7 @@ describe('startNewRun', () => {
 describe('handleRunEvent', () => {
 	it.each([
 		[
-			{ type: 'started', query: null, count: 3, exploration: 50 },
+			{ type: 'started', count: 3, exploration: 50 },
 			'Reading your taste...',
 		],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
@@ -157,7 +157,7 @@ describe('handleRunEvent', () => {
 	})
 
 	it('turns the loading card into a song and starts streaming on a recommended score', () => {
-		handleRunEvent({ type: 'started', query: null, count: 3, exploration: 50 })
+		handleRunEvent({ type: 'started', count: 3, exploration: 50 })
 		run.phase = 'preparing'
 		handleRunEvent(makeAnalyzing('a'))
 		handleRunEvent(makeSong('a'))
@@ -215,7 +215,7 @@ describe('handleRunEvent', () => {
 
 describe('model download events', () => {
 	it('ignores them; progress comes from the shared model state', () => {
-		handleRunEvent({ type: 'started', query: null, count: 3, exploration: 50 })
+		handleRunEvent({ type: 'started', count: 3, exploration: 50 })
 		handleRunEvent({
 			type: 'download_progress',
 			model: 'a',

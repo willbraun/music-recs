@@ -15,13 +15,12 @@ import api
 
 
 def test_run_request_defaults_and_strips_query() -> None:
-    assert api.RunRequest().model_dump() == {"query": None, "count": 3, "exploration": 50}
-    assert api.RunRequest(query="  daft punk ").query == "daft punk"
+    assert api.RunRequest().model_dump() == {"count": 3, "exploration": 50}
 
 
 @pytest.mark.parametrize(
     "fields",
-    [{"query": "   "}, {"query": "x" * 201}, {"count": 0}, {"count": 51}, {"exploration": -1}, {"exploration": 101}],
+    [{"count": 0}, {"count": 51}, {"exploration": -1}, {"exploration": 101}],
 )
 def test_run_request_rejects_invalid_values(fields: dict) -> None:
     with pytest.raises(ValidationError):
@@ -84,32 +83,32 @@ def _wait_until_finished(job: api.Job) -> None:
 def test_process_jobs_publishes_run_events_then_finishes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[tuple] = []
 
-    def fake_run(query, count, exploration, appdb):
-        calls.append((query, count, exploration))
+    def fake_run(count, exploration, appdb):
+        calls.append((count, exploration))
         yield {"type": "started"}
         yield {"type": "done"}
 
     monkeypatch.setattr(api, "run", fake_run)
     jobs: queue.Queue[api.Job] = queue.Queue()
-    job = api.Job(api.RunRequest(query="q", count=2, exploration=10))
+    job = api.Job(api.RunRequest(count=2, exploration=10))
     jobs.put(job)
 
     _run_worker(jobs, AppDb(tmp_path / "app.db"))
     _wait_until_finished(job)
 
-    assert calls == [("q", 2, 10)]
+    assert calls == [(2, 10)]
     assert job.events == [{"type": "started"}, {"type": "done"}]
 
 
 def test_process_jobs_reports_errors_and_keeps_serving(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    def fake_run(query, count, exploration, appdb):
-        if query == "bad":
+    def fake_run(count, exploration, appdb):
+        if count == 1:
             raise RuntimeError("model failed")
         yield {"type": "done"}
 
     monkeypatch.setattr(api, "run", fake_run)
     jobs: queue.Queue[api.Job] = queue.Queue()
-    bad, good = api.Job(api.RunRequest(query="bad")), api.Job(api.RunRequest(query="good"))
+    bad, good = api.Job(api.RunRequest(count=1)), api.Job(api.RunRequest(count=2))
     jobs.put(bad)
     jobs.put(good)
 
@@ -132,12 +131,12 @@ def client(tmp_path: Path) -> TestClient:
 
 def test_start_run_queues_a_job_and_returns_its_id(client: TestClient) -> None:
     api.app.state.appdb.save_taste(TasteProfile(liked_genres=["Rock"]))
-    response = client.post("/api/runs", json={"query": "daft punk", "count": 2})
+    response = client.post("/api/runs", json={"count": 2})
 
     assert response.status_code == 202
     run_id = response.json()["id"]
     job = api.app.state.jobs[run_id]
-    assert job.request == api.RunRequest(query="daft punk", count=2)
+    assert job.request == api.RunRequest(count=2)
     assert api.app.state.queue.get_nowait() is job
 
 

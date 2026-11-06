@@ -298,13 +298,13 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     return state
 
 
-def test_run_with_query_stops_once_count_is_recommended(appdb: AppDb, stub_pipeline) -> None:
-    events = list(pipeline.run("my query", 2, 40, appdb))
+def test_run_stops_once_count_is_recommended(appdb: AppDb, stub_pipeline) -> None:
+    events = list(pipeline.run(2, 40, appdb))
 
-    assert [e["type"] for e in events] == ["started", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
-    assert events[0] == {"type": "started", "query": "my query", "count": 2, "exploration": 40}
+    assert [e["type"] for e in events] == ["started", "queries", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
+    assert events[0] == {"type": "started", "count": 2, "exploration": 40}
     assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 2, "count": 2}
-    assert stub_pipeline.fetch_args[0] == [("my query", None)]
+    assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert stub_pipeline.fetch_args[1] == 2 * pipeline.CANDIDATES_PER_RECOMMENDATION
     assert [s["video_id"] for s in appdb.list_songs()] == ["b", "a"]
 
@@ -313,7 +313,7 @@ def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pip
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a"]
 
-    scored = [e for e in pipeline.run("q", 1, 50, appdb) if e["type"] == "scored"][0]
+    scored = [e for e in pipeline.run(1, 50, appdb) if e["type"] == "scored"][0]
 
     assert scored["recommended"] is False
     assert scored["confidence"] == 0.7
@@ -324,7 +324,7 @@ def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pip
 def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.found = ["a"]
 
-    events = list(pipeline.run("q", 1, 50, appdb))
+    events = list(pipeline.run(1, 50, appdb))
 
     analyzing = [e for e in events if e["type"] == "analyzing"][0]
     scored = [e for e in events if e["type"] == "scored"][0]
@@ -349,7 +349,7 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    scored = {e["video_id"]: e for e in pipeline.run("q", 1, 50, appdb) if e["type"] == "scored"}
+    scored = {e["video_id"]: e for e in pipeline.run(1, 50, appdb) if e["type"] == "scored"}
 
     assert stub_pipeline.artwork_calls == ["a", "b"]
     assert scored["a"]["album_art_url"] == "art-a"
@@ -360,7 +360,7 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
 def test_run_reports_running_recommended_count(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
 
-    analyzing = [e for e in pipeline.run("q", 2, 50, appdb) if e["type"] == "analyzing"]
+    analyzing = [e for e in pipeline.run(2, 50, appdb) if e["type"] == "analyzing"]
 
     assert [(e["index"], e["recommended_count"]) for e in analyzing] == [(1, 0), (2, 0), (3, 1)]
 
@@ -369,14 +369,14 @@ def test_run_stores_not_recommended_songs(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    list(pipeline.run("q", 1, 50, appdb))
+    list(pipeline.run(1, 50, appdb))
 
     stored = {s["video_id"]: (s["recommended"], s["confidence"]) for s in appdb.list_songs()}
     assert stored == {"a": (False, 0.7), "b": (True, 0.9)}
 
 
 def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path: Path) -> None:
-    list(pipeline.run("q", 1, 50, appdb))
+    list(pipeline.run(1, 50, appdb))
 
     assert not (tmp_path / "a.wav").exists()
 
@@ -384,13 +384,13 @@ def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path:
 def test_run_passes_seen_ids_to_the_search(appdb: AppDb, stub_pipeline) -> None:
     appdb.add_song("seen", "t", "a", "u", True, 0.9, "q")
 
-    list(pipeline.run("q", 1, 50, appdb))
+    list(pipeline.run(1, 50, appdb))
 
     assert stub_pipeline.fetch_args[2] == {"seen"}
 
 
-def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
-    events = list(pipeline.run(None, 1, 80, appdb))
+def test_run_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
+    events = list(pipeline.run(1, 80, appdb))
 
     queries_event = next(e for e in events if e["type"] == "queries")
     assert queries_event["queries"] == [{"query": "generated", "tier": "adjacent"}]
@@ -402,14 +402,8 @@ def test_run_without_query_generates_tiered_queries(appdb: AppDb, stub_pipeline)
     assert next(e for e in events if e["type"] == "scored")["tier"] == "adjacent"
 
 
-def test_run_requires_only_the_analysis_model_when_a_query_is_given(appdb: AppDb, stub_pipeline) -> None:
-    list(pipeline.run("q", 1, 50, appdb))
-
-    assert stub_pipeline.required_models == ["FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
-
-
-def test_run_requires_both_models_without_a_query(appdb: AppDb, stub_pipeline) -> None:
-    list(pipeline.run(None, 1, 50, appdb))
+def test_run_requires_both_models(appdb: AppDb, stub_pipeline) -> None:
+    list(pipeline.run(1, 50, appdb))
 
     assert stub_pipeline.required_models == ["Qwen/Qwen2.5-3B-Instruct", "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
 
@@ -419,26 +413,26 @@ def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monk
         pipeline, "download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
     )
 
-    types = [e["type"] for e in pipeline.run(None, 1, 50, appdb)]
+    types = [e["type"] for e in pipeline.run(1, 50, appdb)]
 
     assert types[:4] == ["started", "downloading_models", "queries", "fetching"]
 
 
 def test_run_passes_exploration_to_the_analyzer(appdb: AppDb, stub_pipeline) -> None:
-    list(pipeline.run("q", 1, 77, appdb))
+    list(pipeline.run(1, 77, appdb))
 
     assert stub_pipeline.analyzed[0] == ("a", "I like these genres: Rock. My favorite artists are Flume.", 77)
 
 
 def test_run_without_a_saved_taste_raises(tmp_path: Path, stub_pipeline) -> None:
     with pytest.raises(RuntimeError, match="Set your taste first"):
-        list(pipeline.run("q", 1, 50, AppDb(tmp_path / "empty.db")))
+        list(pipeline.run(1, 50, AppDb(tmp_path / "empty.db")))
 
 
 def test_run_finishes_with_no_songs_found(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.found = []
 
-    events = list(pipeline.run("q", 3, 50, appdb))
+    events = list(pipeline.run(3, 50, appdb))
 
     assert events[-1] == {"type": "done", "analyzed": 0, "recommended": 0, "count": 3}
 
@@ -448,7 +442,7 @@ def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> No
         appdb.add_song(f"f{i}", "t", "Flume", "u", True, 0.9, "q")
     appdb.add_song("m", "t", "Muse", "u", True, 0.9, "q")
 
-    list(pipeline.run(None, 1, 50, appdb))
+    list(pipeline.run(1, 50, appdb))
 
     assert stub_pipeline.avoided == ["Flume"]
     assert stub_pipeline.avoid_artists == {"flume"}
@@ -457,6 +451,6 @@ def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> No
 def test_run_blocks_disliked_artists(appdb: AppDb, stub_pipeline) -> None:
     appdb.save_taste(TasteProfile(liked_genres=["Rock"], disliked_artists=["Muse", " Radiohead "]))
 
-    list(pipeline.run("q", 1, 50, appdb))
+    list(pipeline.run(1, 50, appdb))
 
     assert stub_pipeline.blocked_artists == {"muse", "radiohead"}
