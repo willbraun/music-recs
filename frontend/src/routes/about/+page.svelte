@@ -15,7 +15,7 @@
 				'About 14 GB free for the two models, which are stored in the Hugging Face cache.',
 		},
 		{
-			name: 'Memory (VRAM)',
+			name: 'Memory',
 			detail:
 				'16 GB or more of unified memory. The models load one at a time, so Qwen 2.5 3B (about 6 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
 		},
@@ -25,7 +25,7 @@
 		},
 		{
 			name: 'Operating System',
-			detail: 'macOS.',
+			detail: 'macOS',
 		},
 		{
 			name: 'Internet',
