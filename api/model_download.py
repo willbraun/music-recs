@@ -4,7 +4,7 @@ from collections import deque
 from typing import Iterator
 
 # Plain constants so listing models does not import torch or mlx; analyze.py and queries.py load these ids.
-QUERY_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+QUERY_MODEL_ID = "Qwen/Qwen3-8B-MLX-4bit"
 ANALYSIS_MODEL_ID = "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"
 MODEL_IDS = (QUERY_MODEL_ID, ANALYSIS_MODEL_ID)
 

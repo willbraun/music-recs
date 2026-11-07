@@ -27,7 +27,7 @@ import {
 } from './modelCache.svelte'
 
 const MOSS = 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
-const QWEN = 'Qwen/Qwen2.5-3B-Instruct'
+const QWEN = 'Qwen/Qwen3-8B-MLX-4bit'
 
 function makeStatus(
 	id: string,
@@ -123,7 +123,7 @@ describe('loadModelCache', () => {
 		await loadModelCache()
 
 		expect(toastMock.error).toHaveBeenCalledWith(
-			'MOSS Music 8B Instruct: network down'
+			'MOSS Music 8B Instruct (MLX 5-bit): network down'
 		)
 	})
 
@@ -206,7 +206,7 @@ describe('removeModelFiles', () => {
 
 		expect(removeModelMock).toHaveBeenCalledWith(MOSS)
 		expect(toastMock.success).toHaveBeenCalledWith(
-			'Removed MOSS Music 8B Instruct'
+			'Removed MOSS Music 8B Instruct (MLX 5-bit)'
 		)
 		expect(listModelsMock).toHaveBeenCalledOnce()
 		expect(modelCache.removing).toEqual([])

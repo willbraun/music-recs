@@ -20,7 +20,7 @@ describe('ModelDownload', () => {
 	it('shows the friendly model name', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
-		expect(screen.getByText('MOSS Music 8B Instruct')).toBeInTheDocument()
+		expect(screen.getByText('MOSS Music 8B Instruct (MLX 5-bit)')).toBeInTheDocument()
 		expect(
 			screen.queryByText('FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit')
 		).not.toBeInTheDocument()
@@ -30,7 +30,7 @@ describe('ModelDownload', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
 		const link = screen.getByRole('link', {
-			name: 'Open MOSS Music 8B Instruct on Hugging Face',
+			name: 'Open MOSS Music 8B Instruct (MLX 5-bit) on Hugging Face',
 		})
 		expect(link).toHaveAttribute(
 			'href',
@@ -54,7 +54,7 @@ describe('ModelDownload', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
 		const bar = screen.getByRole('progressbar', {
-			name: 'Downloading MOSS Music 8B Instruct',
+			name: 'Downloading MOSS Music 8B Instruct (MLX 5-bit)',
 		})
 		expect(bar).toHaveAttribute('aria-valuenow', '25')
 		expect(screen.getByText('25%')).toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('ModelDownload', () => {
 		})
 
 		const bar = screen.getByRole('progressbar', {
-			name: 'Waiting to download MOSS Music 8B Instruct',
+			name: 'Waiting to download MOSS Music 8B Instruct (MLX 5-bit)',
 		})
 		expect(bar).toHaveAttribute('aria-valuenow', '0')
 		expect(screen.getByText(/Waiting/)).toBeInTheDocument()

@@ -1,7 +1,5 @@
 yt-dlp
-torch
-transformers
-accelerate
 mlx-audio>=0.5.7
+mlx-lm
 fastapi
 uvicorn

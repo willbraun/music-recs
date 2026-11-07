@@ -405,7 +405,7 @@ def test_run_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
 def test_run_requires_both_models(appdb: AppDb, stub_pipeline) -> None:
     list(pipeline.run(1, 50, appdb))
 
-    assert stub_pipeline.required_models == ["Qwen/Qwen2.5-3B-Instruct", "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
+    assert stub_pipeline.required_models == ["Qwen/Qwen3-8B-MLX-4bit", "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
 
 
 def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monkeypatch: pytest.MonkeyPatch) -> None:

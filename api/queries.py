@@ -6,9 +6,10 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
-import torch
+import mlx.core as mx
+from mlx_lm import generate, load
+from mlx_lm.sample_utils import make_sampler
 from model_download import QUERY_MODEL_ID
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Budget for one JSON string and its separator; the array needs room for every query.
 TOKENS_PER_QUERY = 24
@@ -46,19 +47,15 @@ def allocate_tiers(n: int, exploration: int) -> list[str]:
 
 @lru_cache(maxsize=1)
 def _load():
-    tokenizer = AutoTokenizer.from_pretrained(QUERY_MODEL_ID)
-    model = AutoModelForCausalLM.from_pretrained(QUERY_MODEL_ID, dtype="auto", device_map="auto")
-    return tokenizer, model
+    model, tokenizer = load(QUERY_MODEL_ID)
+    return model, tokenizer
 
 
 def unload_model() -> None:
     """Release the query model so its memory is free for the audio model."""
     _load.cache_clear()
     gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    if torch.backends.mps.is_available():
-        torch.mps.empty_cache()
+    mx.clear_cache()
 
 
 def _build_prompt(taste: str, tiers: list[str], avoid_artists: list[str]) -> str:
@@ -92,13 +89,18 @@ def _get_fallback_queries(taste: str, liked_artists: list[str]) -> list[str]:
 
 
 def _generate_text(prompt: str, n: int) -> str:
-    tokenizer, model = _load()
-    messages = [{"role": "user", "content": prompt}]
-    inputs = tokenizer.apply_chat_template(
-        messages, add_generation_prompt=True, return_dict=True, return_tensors="pt"
-    ).to(model.device)
-    outputs = model.generate(**inputs, max_new_tokens=n * TOKENS_PER_QUERY, do_sample=True, temperature=TEMPERATURE)
-    return tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    model, tokenizer = _load()
+    # Thinking is off so the token budget goes to the JSON array, not to a reasoning preamble.
+    chat_prompt = tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}], add_generation_prompt=True, enable_thinking=False
+    )
+    return generate(
+        model,
+        tokenizer,
+        chat_prompt,
+        max_tokens=n * TOKENS_PER_QUERY,
+        sampler=make_sampler(temp=TEMPERATURE),
+    )
 
 
 def generate_queries(
@@ -133,4 +135,5 @@ def generate_queries(
         if query.casefold() not in used:
             used.add(query.casefold())
             generated.append(GeneratedQuery(query, "familiar"))
+    print("Generated queries:", generated)
     return generated

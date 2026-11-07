@@ -26,7 +26,7 @@ describe('about page', () => {
 
 		for (const term of [
 			'Disk Space',
-			'Memory (VRAM)',
+			'Memory',
 			'Processor',
 			'Operating System',
 			'Internet',

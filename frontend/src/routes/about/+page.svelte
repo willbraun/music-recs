@@ -12,16 +12,16 @@
 		{
 			name: 'Disk Space',
 			detail:
-				'About 14 GB free for the two models, which are stored in the Hugging Face cache.',
+				'About 13 GB free for the two models, which are stored in the Hugging Face cache.',
 		},
 		{
 			name: 'Memory',
 			detail:
-				'16 GB or more of unified memory. The models load one at a time, so Qwen 2.5 3B (about 6 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
+				'16 GB or more of unified memory. The models load one at a time, so Qwen 3 8B (about 5 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
 		},
 		{
 			name: 'Processor',
-			detail: 'Apple Silicon, which the MLX build of the audio model requires.',
+			detail: 'Apple Silicon, which the MLX builds of both models require.',
 		},
 		{
 			name: 'Operating System',

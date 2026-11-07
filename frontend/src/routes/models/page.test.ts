@@ -33,7 +33,7 @@ vi.mock('#lib/modelCache.svelte.js', () => ({
 
 import Page from './+page.svelte'
 
-const QWEN = 'Qwen/Qwen2.5-3B-Instruct'
+const QWEN = 'Qwen/Qwen3-8B-MLX-4bit'
 const MOSS = 'FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
 
 function makeStatus(
@@ -55,10 +55,7 @@ beforeEach(() => {
 	removeModelFilesMock.mockReset()
 	watchModelCacheMock.mockReset().mockReturnValue(() => {})
 	modelCache.status = 'ready'
-	modelCache.items = [
-		makeStatus(QWEN, { downloaded: true }),
-		makeStatus(MOSS),
-	]
+	modelCache.items = [makeStatus(QWEN, { downloaded: true }), makeStatus(MOSS)]
 	modelCache.busy = false
 	modelCache.error = null
 	modelCache.removing = []
@@ -74,10 +71,12 @@ describe('models page', () => {
 			screen.getByRole('heading', { name: 'Models', level: 1 })
 		).toBeInTheDocument()
 		expect(
-			screen.getByRole('heading', { name: 'Qwen 2.5 3B Instruct' })
+			screen.getByRole('heading', { name: 'Qwen3 8B (MLX 4-bit)' })
 		).toBeInTheDocument()
 		expect(
-			screen.getByRole('heading', { name: 'MOSS Music 8B Instruct' })
+			screen.getByRole('heading', {
+				name: 'MOSS Music 8B Instruct (MLX 5-bit)',
+			})
 		).toBeInTheDocument()
 		expect(screen.getByText('Downloaded')).toBeInTheDocument()
 		expect(screen.getByText('Not downloaded')).toBeInTheDocument()
@@ -120,7 +119,7 @@ describe('models page', () => {
 		render(Page)
 
 		await userEvent.click(
-			screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct' })
+			screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct (MLX 5-bit)' })
 		)
 
 		expect(downloadModelMock).toHaveBeenCalledWith(MOSS)
@@ -129,7 +128,7 @@ describe('models page', () => {
 	it('removes the model after confirming', async () => {
 		render(Page)
 		await userEvent.click(
-			screen.getByRole('button', { name: 'Remove Qwen 2.5 3B Instruct' })
+			screen.getByRole('button', { name: 'Remove Qwen3 8B (MLX 4-bit)' })
 		)
 		const dialog = await screen.findByRole('dialog')
 		await userEvent.click(
@@ -144,7 +143,7 @@ describe('models page', () => {
 		render(Page)
 
 		expect(
-			screen.getByRole('button', { name: 'Remove Qwen 2.5 3B Instruct' })
+			screen.getByRole('button', { name: 'Remove Qwen3 8B (MLX 4-bit)' })
 		).toBeDisabled()
 	})
 
