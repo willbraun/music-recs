@@ -18,8 +18,11 @@ vi.mock('svelte-sonner', () => ({ toast: toastMock }))
 
 import { run } from '#lib/run.svelte.js'
 import {
+	areModelsDownloaded,
+	downloadMissingModels,
 	downloadModel,
 	getActiveDownloads,
+	getMissingModelsSize,
 	loadModelCache,
 	modelCache,
 	removeModelFiles,
@@ -191,6 +194,85 @@ describe('downloadModel', () => {
 
 		expect(toastMock.error).toHaveBeenCalledWith('Model is already downloaded')
 		expect(listModelsMock).toHaveBeenCalled()
+	})
+})
+
+describe('model readiness', () => {
+	it('is not ready until the list has loaded', () => {
+		expect(areModelsDownloaded()).toBe(false)
+	})
+
+	it('is ready only when every model is downloaded', async () => {
+		listModelsMock.mockResolvedValue(
+			makeList([makeStatus(QWEN, { downloaded: true }), makeStatus(MOSS)])
+		)
+		await loadModelCache()
+		expect(areModelsDownloaded()).toBe(false)
+
+		listModelsMock.mockResolvedValue(
+			makeList([
+				makeStatus(QWEN, { downloaded: true }),
+				makeStatus(MOSS, { downloaded: true }),
+			])
+		)
+		await loadModelCache()
+		expect(areModelsDownloaded()).toBe(true)
+	})
+
+	it('sums the size of the missing models only', async () => {
+		listModelsMock.mockResolvedValue(
+			makeList([
+				makeStatus(QWEN, { downloaded: true, size_bytes: 5000 }),
+				makeStatus(MOSS, { size_bytes: 2000 }),
+			])
+		)
+		await loadModelCache()
+
+		expect(getMissingModelsSize()).toBe(2000)
+	})
+
+	it('has no total size when a missing model size is unknown', async () => {
+		listModelsMock.mockResolvedValue(
+			makeList([makeStatus(QWEN, { size_bytes: null }), makeStatus(MOSS)])
+		)
+		await loadModelCache()
+
+		expect(getMissingModelsSize()).toBeNull()
+	})
+})
+
+describe('downloadMissingModels', () => {
+	it('starts only the models that are neither downloaded nor active', async () => {
+		listModelsMock.mockResolvedValue(
+			makeList([makeStatus(QWEN, { downloaded: true }), makeStatus(MOSS)])
+		)
+		await loadModelCache()
+		startModelDownloadMock.mockResolvedValue(
+			makeStatus(MOSS, { download: makeDownloading('pending') })
+		)
+
+		await downloadMissingModels()
+
+		expect(startModelDownloadMock).toHaveBeenCalledTimes(1)
+		expect(startModelDownloadMock).toHaveBeenCalledWith(MOSS)
+	})
+
+	it('skips a model whose download is already active', async () => {
+		listModelsMock.mockResolvedValue(
+			makeList([
+				makeStatus(QWEN, { download: makeDownloading() }),
+				makeStatus(MOSS),
+			])
+		)
+		await loadModelCache()
+		startModelDownloadMock.mockResolvedValue(
+			makeStatus(MOSS, { download: makeDownloading('pending') })
+		)
+
+		await downloadMissingModels()
+
+		expect(startModelDownloadMock).toHaveBeenCalledTimes(1)
+		expect(startModelDownloadMock).toHaveBeenCalledWith(MOSS)
 	})
 })
 

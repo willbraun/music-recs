@@ -12,10 +12,14 @@
 		normalizeNotes,
 	} from '#lib/profile.js'
 	import { saveTasteResult, taste } from '#lib/taste.svelte.js'
-	import { goto } from '$app/navigation'
 	import { toast } from 'svelte-sonner'
 	import GenreCombobox from './GenreCombobox.svelte'
 	import TagInput from './TagInput.svelte'
+
+	let {
+		saveLabel = 'Save Taste',
+		onsaved,
+	}: { saveLabel?: string; onsaved?: () => void } = $props()
 
 	let form = $state(
 		cloneProfile(taste.current?.profile ?? createEmptyProfile())
@@ -34,7 +38,6 @@
 	async function submitTaste(event: SubmitEvent) {
 		event.preventDefault()
 		if (!canSave) return
-		const isSetup = taste.status === 'none'
 		isSaving = true
 		errorMessage = null
 		try {
@@ -45,7 +48,7 @@
 			saveTasteResult(saved)
 			form = cloneProfile(saved.profile)
 			toast.success('Taste saved')
-			if (isSetup) await goto('/')
+			onsaved?.()
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : 'Could not save your taste'
@@ -117,7 +120,7 @@
 			</Alert.Root>
 		{/if}
 		<div class="flex justify-end">
-			<Button type="submit" disabled={!canSave}>Save Taste</Button>
+			<Button type="submit" disabled={!canSave}>{saveLabel}</Button>
 		</div>
 	</div>
 </form>

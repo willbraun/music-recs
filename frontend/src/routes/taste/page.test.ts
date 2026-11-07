@@ -3,26 +3,19 @@ import { cleanup, render, screen, within } from '@testing-library/svelte'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-	getTasteMock,
-	saveTasteMock,
-	gotoMock,
-	toastSuccessMock,
-	toastErrorMock,
-} = vi.hoisted(() => ({
-	getTasteMock: vi.fn(),
-	saveTasteMock: vi.fn(),
-	gotoMock: vi.fn(),
-	toastSuccessMock: vi.fn(),
-	toastErrorMock: vi.fn(),
-}))
+const { getTasteMock, saveTasteMock, toastSuccessMock, toastErrorMock } =
+	vi.hoisted(() => ({
+		getTasteMock: vi.fn(),
+		saveTasteMock: vi.fn(),
+		toastSuccessMock: vi.fn(),
+		toastErrorMock: vi.fn(),
+	}))
 
 vi.mock('#lib/api.js', async (importOriginal) => ({
 	...(await importOriginal<typeof import('#lib/api.js')>()),
 	getTaste: getTasteMock,
 	saveTaste: saveTasteMock,
 }))
-vi.mock('$app/navigation', () => ({ goto: gotoMock }))
 vi.mock('svelte-sonner', () => ({
 	toast: { success: toastSuccessMock, error: toastErrorMock },
 }))
@@ -45,7 +38,6 @@ const savedTaste: Taste = {
 beforeEach(() => {
 	getTasteMock.mockReset()
 	saveTasteMock.mockReset()
-	gotoMock.mockReset()
 	toastSuccessMock.mockReset()
 	toastErrorMock.mockReset()
 	clearTaste()
@@ -132,7 +124,7 @@ describe('taste page', () => {
 		expect(screen.getByText('Already in your dislikes')).toBeInTheDocument()
 	})
 
-	it('saves the setup, then goes home with a toast', async () => {
+	it('saves the setup with a toast', async () => {
 		saveTasteMock.mockResolvedValue(savedTaste)
 		render(Page)
 
@@ -150,7 +142,6 @@ describe('taste page', () => {
 			notes: '',
 		})
 		expect(toastSuccessMock).toHaveBeenCalledWith('Taste saved')
-		expect(gotoMock).toHaveBeenCalledWith('/')
 		expect(taste.status).toBe('ready')
 	})
 
@@ -170,7 +161,6 @@ describe('taste page', () => {
 			'Add at least one liked genre or artist'
 		)
 		expect(toastErrorMock).not.toHaveBeenCalled()
-		expect(gotoMock).not.toHaveBeenCalled()
 	})
 
 	it('shows a toast for other failures', async () => {

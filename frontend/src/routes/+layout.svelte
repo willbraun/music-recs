@@ -5,15 +5,18 @@
 	import { Toaster } from '#lib/components/ui/sonner/index.js'
 	import { player } from '#lib/player.svelte.js'
 	import { closeRunStream, resumeRun } from '#lib/run.svelte.js'
+	import { loadTaste } from '#lib/taste.svelte.js'
 	import { ModeWatcher } from 'mode-watcher'
 	import { onDestroy, onMount } from 'svelte'
 	import type { LayoutProps } from './$types'
 	import './layout.css'
-	import TasteGate from './taste/TasteGate.svelte'
 
 	let { children }: LayoutProps = $props()
 
-	onMount(resumeRun)
+	onMount(() => {
+		void loadTaste()
+		resumeRun()
+	})
 	onDestroy(closeRunStream)
 </script>
 
@@ -27,9 +30,7 @@
 <Header />
 
 <div class:pb-18={player.current}>
-	<TasteGate>
-		{@render children()}
-	</TasteGate>
+	{@render children()}
 </div>
 
 <Player />

@@ -49,6 +49,26 @@ export function getActiveDownloads(): ModelDownloadItem[] {
 	)
 }
 
+// Only meaningful once the list has loaded; an empty list would otherwise read as ready.
+export function areModelsDownloaded(): boolean {
+	return (
+		modelCache.status === 'ready' &&
+		modelCache.items.length > 0 &&
+		modelCache.items.every((item) => item.downloaded)
+	)
+}
+
+export function getMissingModels(): ModelStatus[] {
+	return modelCache.items.filter((item) => !item.downloaded)
+}
+
+// Null when any missing model's size is unknown, so callers do not show a partial total.
+export function getMissingModelsSize(): number | null {
+	const missing = getMissingModels()
+	if (missing.some((item) => item.size_bytes === null)) return null
+	return missing.reduce((total, item) => total + (item.size_bytes ?? 0), 0)
+}
+
 function applyList(list: ModelList) {
 	for (const item of list.items) {
 		const before = modelCache.items.find((existing) => existing.id === item.id)
@@ -87,6 +107,14 @@ export async function downloadModel(id: string) {
 		)
 		void loadModelCache()
 	}
+}
+
+export async function downloadMissingModels() {
+	await Promise.all(
+		getMissingModels()
+			.filter((item) => !isDownloadActive(item))
+			.map((item) => downloadModel(item.id))
+	)
 }
 
 export async function removeModelFiles(id: string) {

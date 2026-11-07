@@ -1,9 +1,11 @@
+import type { ModelStatus, Taste } from '#lib/api.js'
 import {
 	cleanup,
 	fireEvent,
 	render,
 	screen,
 	waitFor,
+	within,
 } from '@testing-library/svelte'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,18 +13,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
 	startNewRunMock,
 	playSongMock,
-	getActiveDownloadsMock,
 	watchModelCacheMock,
+	downloadMissingModelsMock,
+	getTasteMock,
+	saveTasteMock,
 } = vi.hoisted(() => ({
 	startNewRunMock: vi.fn(),
 	playSongMock: vi.fn(),
-	getActiveDownloadsMock: vi.fn(),
 	watchModelCacheMock: vi.fn(),
+	downloadMissingModelsMock: vi.fn(),
+	getTasteMock: vi.fn(),
+	saveTasteMock: vi.fn(),
 }))
 
-vi.mock('#lib/modelCache.svelte.js', () => ({
-	getActiveDownloads: getActiveDownloadsMock,
+vi.mock('#lib/api.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/api.js')>()),
+	getTaste: getTasteMock,
+	saveTaste: saveTasteMock,
+}))
+
+vi.mock('#lib/modelCache.svelte.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/modelCache.svelte.js')>()),
 	watchModelCache: watchModelCacheMock,
+	downloadMissingModels: downloadMissingModelsMock,
 }))
 
 vi.mock('#lib/player.svelte.js', async (importOriginal) => ({
@@ -43,8 +56,49 @@ vi.mock('#lib/run.svelte.js', () => ({
 	RUN_QUEUE_ORIGIN: 'run',
 }))
 
+import { modelCache } from '#lib/modelCache.svelte.js'
 import { run } from '#lib/run.svelte.js'
+import { clearTaste, saveTasteResult, taste } from '#lib/taste.svelte.js'
 import Page from './+page.svelte'
+
+const savedTaste: Taste = {
+	profile: {
+		liked_genres: [],
+		liked_artists: ['Flume'],
+		disliked_genres: [],
+		disliked_artists: [],
+		notes: '',
+	},
+	text: 'I like Flume.',
+	updated_at: '2026-10-10 12:00:00',
+}
+
+function makeModel(
+	id: string,
+	overrides: Partial<ModelStatus> = {}
+): ModelStatus {
+	return {
+		id,
+		downloaded: false,
+		size_bytes: 2_000_000_000,
+		download: null,
+		...overrides,
+	}
+}
+
+function makeActiveDownload(
+	state: 'pending' | 'downloading',
+	downloadedBytes: number
+): NonNullable<ModelStatus['download']> {
+	return {
+		state,
+		downloaded_bytes: downloadedBytes,
+		total_bytes: 100,
+		bytes_per_second: 10,
+		seconds_remaining: downloadedBytes === 0 ? null : 5,
+		error: null,
+	}
+}
 
 beforeEach(() => {
 	run.phase = 'idle'
@@ -52,11 +106,24 @@ beforeEach(() => {
 	run.cards = []
 	startNewRunMock.mockReset()
 	playSongMock.mockReset()
-	getActiveDownloadsMock.mockReset().mockReturnValue([])
+	downloadMissingModelsMock.mockReset()
+	getTasteMock.mockReset()
+	saveTasteMock.mockReset()
 	watchModelCacheMock.mockReset().mockReturnValue(() => {})
+	saveTasteResult(savedTaste)
+	modelCache.status = 'ready'
+	modelCache.items = [
+		makeModel('org/first', { downloaded: true }),
+		makeModel('org/second', { downloaded: true }),
+	]
 })
 
-afterEach(cleanup)
+afterEach(() => {
+	cleanup()
+	clearTaste()
+	// An open dialog locks the body and unmounting does not always release it.
+	document.body.style.removeProperty('pointer-events')
+})
 
 describe('home page', () => {
 	it('shows the heading and description', () => {
@@ -154,24 +221,14 @@ describe('home page', () => {
 
 	it('shows every model download at once with its state', () => {
 		run.phase = 'preparing'
-		getActiveDownloadsMock.mockReturnValue([
-			{
-				model: 'org/first',
-				downloaded_bytes: 50,
-				total_bytes: 100,
-				bytes_per_second: 10,
-				seconds_remaining: 5,
-				state: 'downloading',
-			},
-			{
-				model: 'org/second',
-				downloaded_bytes: 0,
-				total_bytes: 200,
-				bytes_per_second: 0,
-				seconds_remaining: null,
-				state: 'pending',
-			},
-		])
+		modelCache.items = [
+			makeModel('org/first', {
+				download: makeActiveDownload('downloading', 50),
+			}),
+			makeModel('org/second', {
+				download: makeActiveDownload('pending', 0),
+			}),
+		]
 		render(Page)
 
 		expect(
@@ -185,16 +242,12 @@ describe('home page', () => {
 	})
 
 	it('shows a download started elsewhere even when no run is active', () => {
-		getActiveDownloadsMock.mockReturnValue([
-			{
-				model: 'org/first',
-				downloaded_bytes: 50,
-				total_bytes: 100,
-				bytes_per_second: 10,
-				seconds_remaining: 5,
-				state: 'downloading',
-			},
-		])
+		modelCache.items = [
+			makeModel('org/first', {
+				download: makeActiveDownload('downloading', 50),
+			}),
+			makeModel('org/second', { downloaded: true }),
+		]
 		render(Page)
 
 		expect(
@@ -332,5 +385,192 @@ describe('home page', () => {
 			)
 		).toBeInTheDocument()
 		expect(screen.getByRole('button', { name: 'Find new music' })).toBeEnabled()
+	})
+})
+
+describe('first-run taste flow', () => {
+	function setMissingModels() {
+		modelCache.items = [makeModel('org/first'), makeModel('org/second')]
+	}
+
+	async function saveTasteInModal() {
+		const likes = screen.getByRole('group', { name: 'I like' })
+		await userEvent.type(
+			within(likes).getByLabelText('Artists'),
+			'Flume{Enter}'
+		)
+		await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	}
+
+	it('shows a skeleton while the taste loads', () => {
+		taste.status = 'loading'
+		render(Page)
+
+		expect(screen.getByLabelText('Loading taste')).toBeInTheDocument()
+		expect(
+			screen.queryByRole('button', { name: 'Find new music' })
+		).not.toBeInTheDocument()
+	})
+
+	it('shows the error with a Retry button that reloads the taste', async () => {
+		taste.status = 'error'
+		taste.error = 'Request failed (500)'
+		getTasteMock.mockResolvedValue(savedTaste)
+		render(Page)
+
+		expect(screen.getByText('Request failed (500)')).toBeInTheDocument()
+		await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+		expect(
+			await screen.findByRole('button', { name: 'Find new music' })
+		).toBeInTheDocument()
+	})
+
+	it('asks for a taste instead of offering to find music', () => {
+		clearTaste()
+		setMissingModels()
+		render(Page)
+
+		expect(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		).toBeInTheDocument()
+		expect(
+			screen.queryByRole('button', { name: 'Find new music' })
+		).not.toBeInTheDocument()
+	})
+
+	it('opens the taste modal without starting a download', async () => {
+		clearTaste()
+		setMissingModels()
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+
+		expect(await screen.findByRole('dialog')).toBeInTheDocument()
+		expect(
+			screen.getByRole('button', { name: 'Download Models' })
+		).toBeInTheDocument()
+		expect(screen.getByText(/About 4\.0 GB/)).toBeInTheDocument()
+		expect(downloadMissingModelsMock).not.toHaveBeenCalled()
+	})
+
+	it('hides the model section in the modal when the models are downloaded', async () => {
+		clearTaste()
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+
+		await screen.findByRole('dialog')
+		expect(
+			screen.queryByRole('button', { name: 'Download Models' })
+		).not.toBeInTheDocument()
+	})
+
+	it('shows the download progress in the modal while models download', async () => {
+		clearTaste()
+		modelCache.items = [
+			makeModel('org/first', {
+				download: makeActiveDownload('downloading', 42),
+			}),
+			makeModel('org/second', { download: makeActiveDownload('pending', 0) }),
+		]
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+
+		expect(await screen.findByText('Downloading models...')).toBeInTheDocument()
+		expect(
+			screen.queryByRole('button', { name: 'Download Models' })
+		).not.toBeInTheDocument()
+		expect(
+			screen.getByText(
+				'You can continue entering your preferences while they download.'
+			)
+		).toBeInTheDocument()
+	})
+
+	it('starts the downloads only when Download Models is clicked', async () => {
+		clearTaste()
+		setMissingModels()
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+		await userEvent.click(
+			await screen.findByRole('button', { name: 'Download Models' })
+		)
+
+		expect(downloadMissingModelsMock).toHaveBeenCalledOnce()
+	})
+
+	it('closes the modal on save and follows the download until the models are ready', async () => {
+		clearTaste()
+		setMissingModels()
+		saveTasteMock.mockResolvedValue(savedTaste)
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+		await screen.findByRole('dialog')
+		modelCache.items = [
+			makeModel('org/first', {
+				download: makeActiveDownload('downloading', 72),
+			}),
+			makeModel('org/second', { download: makeActiveDownload('pending', 0) }),
+		]
+		await saveTasteInModal()
+
+		await waitFor(() =>
+			expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+		)
+		expect(
+			screen.getByText('Your taste is saved. Models are still downloading...')
+		).toBeInTheDocument()
+		expect(
+			screen.getByRole('button', { name: 'Getting ready...' })
+		).toBeDisabled()
+		expect(startNewRunMock).not.toHaveBeenCalled()
+
+		modelCache.items = [
+			makeModel('org/first', { downloaded: true }),
+			makeModel('org/second', { downloaded: true }),
+		]
+
+		expect(await screen.findByText('Your taste is ready.')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'Find new music' })).toBeEnabled()
+		expect(startNewRunMock).not.toHaveBeenCalled()
+	})
+
+	it('goes straight to Find new music after saving when the models are downloaded', async () => {
+		clearTaste()
+		saveTasteMock.mockResolvedValue(savedTaste)
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'What music do you like?' })
+		)
+		await screen.findByRole('dialog')
+		await saveTasteInModal()
+
+		expect(
+			await screen.findByRole('button', { name: 'Find new music' })
+		).toBeEnabled()
+		expect(screen.queryByText('Your taste is ready.')).not.toBeInTheDocument()
+	})
+
+	it('keeps the normal flow for a taste with models still missing', async () => {
+		setMissingModels()
+		render(Page)
+
+		await userEvent.click(
+			screen.getByRole('button', { name: 'Find new music' })
+		)
+
+		expect(startNewRunMock).toHaveBeenCalledWith(3, 50)
+		expect(
+			screen.queryByText('Your taste is saved. Models are still downloading...')
+		).not.toBeInTheDocument()
 	})
 })
