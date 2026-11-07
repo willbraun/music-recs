@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { MODELS } from '#lib/models.js'
+
+	const LINK_CLASS =
+		'rounded-sm underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+
 	const STEPS = [
 		'Your taste profile describes the genres and artists you like and dislike.',
 		'A language model turns that taste into search queries, unless you search for something yourself.',
@@ -17,7 +22,7 @@
 		{
 			name: 'Memory',
 			detail:
-				'16 GB or more of unified memory. The models load one at a time, so Qwen 3 8B (about 5 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
+				'16 GB or more of unified memory. The models load one at a time, so Qwen3 8B (about 5 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
 		},
 		{
 			name: 'Processor',
@@ -70,5 +75,37 @@
 				</div>
 			{/each}
 		</dl>
+	</section>
+
+	<section class="flex flex-col gap-3" aria-labelledby="licenses-heading">
+		<h2 id="licenses-heading" class="text-xl font-semibold">Model Licenses</h2>
+		<p class="text-muted-foreground">
+			This application supports {MODELS.map((model) => model.name).join(
+				' and '
+			)}, which are both licensed under the
+			<a
+				class={LINK_CLASS}
+				href="/licenses/apache-2.0.txt"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				Apache License 2.0</a
+			>. The models are downloaded separately from their respective repositories
+			and are not bundled with this application.
+		</p>
+		<ul class="flex list-disc flex-col gap-1.5 pl-5 text-muted-foreground">
+			{#each MODELS as model (model.id)}
+				<li>
+					<a
+						class={LINK_CLASS}
+						href={model.url}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{model.name}
+					</a>
+				</li>
+			{/each}
+		</ul>
 	</section>
 </main>

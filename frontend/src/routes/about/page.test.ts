@@ -34,4 +34,30 @@ describe('about page', () => {
 			expect(within(section).getByText(term)).toBeInTheDocument()
 		}
 	})
+
+	it('lists the model licenses with repository and license links', () => {
+		render(Page)
+		const section = screen.getByRole('region', { name: 'Model Licenses' })
+
+		expect(
+			within(section).getByText(/both licensed under the/)
+		).toBeInTheDocument()
+		expect(
+			within(section).getByText(/not bundled with this application/)
+		).toBeInTheDocument()
+		expect(
+			within(section).getByRole('link', { name: 'Qwen3 8B (MLX 4-bit)' })
+		).toHaveAttribute('href', 'https://huggingface.co/Qwen/Qwen3-8B-MLX-4bit')
+		expect(
+			within(section).getByRole('link', {
+				name: 'MOSS Music 8B Instruct (MLX 5-bit)',
+			})
+		).toHaveAttribute(
+			'href',
+			'https://huggingface.co/FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit'
+		)
+		expect(
+			within(section).getByRole('link', { name: 'Apache License 2.0' })
+		).toHaveAttribute('href', '/licenses/apache-2.0.txt')
+	})
 })
