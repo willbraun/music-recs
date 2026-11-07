@@ -41,9 +41,7 @@ def test_find_songs_distributes_requests_across_queries(monkeypatch: pytest.Monk
     ]
 
 
-def test_find_songs_expands_batches_until_the_search_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(pipeline, "MAX_SEARCH_RESULTS_PER_QUERY", 6)
-    monkeypatch.setattr(pipeline, "OVERFETCH", 3)
+def test_find_songs_doubles_the_request_in_each_pass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     counts: list[int] = []
 
     def fake_fetch(query: str, count: int, skip_ids: set[str], workdir: Path):
@@ -53,7 +51,18 @@ def test_find_songs_expands_batches_until_the_search_limit(monkeypatch: pytest.M
     monkeypatch.setattr(pipeline, "fetch_songs", fake_fetch)
 
     assert list(pipeline._find_songs([("a", None)], 1, set(), tmp_path)) == []
-    assert counts == [1, 2]
+    assert counts == [1, 2, 4]
+
+
+def test_find_songs_skips_artists_seen_in_an_earlier_round(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fetched = [_song("a", tmp_path, "Flume"), _song("b", tmp_path, "Muse")]
+    monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(fetched))
+    seen_artists = {"flume"}
+
+    found = list(pipeline._find_songs([("a", None)], 2, set(), tmp_path, seen_artists=seen_artists))
+
+    assert [s.video_id for s, _, _ in found] == ["b"]
+    assert seen_artists == {"flume", "muse"}
 
 
 def test_find_songs_skips_repeat_artists_and_deletes_their_clips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -73,9 +82,7 @@ def test_find_songs_skips_repeat_artists_and_deletes_their_clips(monkeypatch: py
 
 
 def test_find_songs_defers_avoided_artists_to_the_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    # A limit of one song makes this a single batch.
-    monkeypatch.setattr(pipeline, "MAX_SEARCH_RESULTS_PER_QUERY", 3)
-    monkeypatch.setattr(pipeline, "OVERFETCH", 3)
+    monkeypatch.setattr(pipeline, "SEARCH_PASSES", 1)
     fetched = [_song("a", tmp_path, "Flume"), _song("b", tmp_path, "Muse")]
     monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(fetched))
 
@@ -83,6 +90,16 @@ def test_find_songs_defers_avoided_artists_to_the_end(monkeypatch: pytest.Monkey
 
     assert [s.video_id for s, _, _ in found] == ["b", "a"]
     assert fetched[0].clip_path.exists()
+
+
+def test_find_songs_holds_avoided_artists_until_every_pass_is_done(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(pipeline, "SEARCH_PASSES", 2)
+    passes = iter([[_song("a", tmp_path, "Flume")], [_song("b", tmp_path, "Muse")]])
+    monkeypatch.setattr(pipeline, "fetch_songs", lambda *args: iter(next(passes)))
+
+    found = list(pipeline._find_songs([("q", None)], 1, set(), tmp_path, {"flume"}))
+
+    assert [s.video_id for s, _, _ in found] == ["b", "a"]
 
 
 def test_find_songs_never_yields_blocked_artists_and_deletes_their_clips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -261,14 +278,27 @@ def appdb(tmp_path: Path) -> AppDb:
 def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Replaces the model and network layers; verdicts are taken per video id."""
     state = SimpleNamespace(
-        found=["a", "b", "c"], verdicts={}, analyzed=[], fetch_args=None, generated=[], artwork_calls=[], required_models=[]
+        found=["a", "b", "c"],
+        found_by_round=[],
+        verdicts={},
+        analyzed=[],
+        fetch_args=None,
+        generated=[],
+        avoided_by_round=[],
+        seen_artists_by_round=[],
+        artwork_calls=[],
+        required_models=[],
     )
 
-    def fake_find_songs(searches, count, skip_ids, workdir, avoid_artists=frozenset(), blocked_artists=frozenset()):
+    def fake_find_songs(
+        searches, count, skip_ids, workdir, avoid_artists=frozenset(), blocked_artists=frozenset(), seen_artists=None
+    ):
         state.avoid_artists = avoid_artists
         state.blocked_artists = blocked_artists
+        state.seen_artists_by_round.append(seen_artists)
         state.fetch_args = (searches, count, set(skip_ids))
-        for video_id in state.found:
+        found = state.found_by_round[len(state.generated) - 1] if state.found_by_round else state.found
+        for video_id in found:
             yield _song(video_id, tmp_path), searches[0][0], searches[0][1]
 
     def fake_analyze(clip_path: Path, taste: str, exploration: int) -> Verdict:
@@ -278,7 +308,10 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     def fake_generate(taste: str, liked_artists: list[str], exploration: int, n: int, avoid_artists: list[str]):
         state.generated.append((taste, liked_artists, exploration, n))
         state.avoided = avoid_artists
-        return [SimpleNamespace(query="generated", tier="adjacent")]
+        state.avoided_by_round.append(list(avoid_artists))
+        # Later rounds get distinct queries, as the real generator avoids the ones already used.
+        query = "generated" if len(state.generated) == 1 else f"generated{len(state.generated)}"
+        return [SimpleNamespace(query=query, tier="adjacent")]
 
     def fake_find_artwork(video_id: str, artist: str, title: str) -> SongArtwork:
         state.artwork_calls.append(video_id)
@@ -435,6 +468,55 @@ def test_run_finishes_with_no_songs_found(appdb: AppDb, stub_pipeline) -> None:
     events = list(pipeline.run(3, 50, appdb))
 
     assert events[-1] == {"type": "done", "analyzed": 0, "recommended": 0, "count": 3}
+    assert len(stub_pipeline.generated) == pipeline.MAX_ROUNDS
+
+
+def test_run_generates_new_queries_when_a_round_falls_short(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.found_by_round = [["a"], ["b"]]
+    stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
+
+    events = list(pipeline.run(1, 50, appdb))
+
+    assert [e["type"] for e in events] == [
+        "started", "queries", "fetching", "analyzing", "scored", "queries", "fetching", "analyzing", "scored", "done",
+    ]
+    queries = [e["queries"][0]["query"] for e in events if e["type"] == "queries"]
+    assert queries == ["generated", "generated2"]
+    assert stub_pipeline.avoided == ["generated"]
+    assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 1, "count": 1}
+
+
+def test_run_stops_when_a_round_brings_no_new_queries(appdb: AppDb, stub_pipeline, monkeypatch: pytest.MonkeyPatch) -> None:
+    stub_pipeline.found = []
+    monkeypatch.setattr("queries.generate_queries", lambda *args: [SimpleNamespace(query="Same", tier="familiar")])
+
+    types = [e["type"] for e in pipeline.run(1, 50, appdb)]
+
+    assert types == ["started", "queries", "fetching", "done"]
+
+
+def test_run_shares_seen_artists_across_rounds(appdb: AppDb, stub_pipeline) -> None:
+    stub_pipeline.found = []
+
+    list(pipeline.run(1, 50, appdb))
+
+    sets = stub_pipeline.seen_artists_by_round
+    assert len(sets) == pipeline.MAX_ROUNDS
+    assert all(s is sets[0] for s in sets)
+
+
+def test_run_avoids_frequent_artists_and_earlier_queries_in_later_rounds(appdb: AppDb, stub_pipeline) -> None:
+    for i in range(pipeline.FREQUENT_ARTIST_RECOMMENDATIONS):
+        appdb.add_song(f"f{i}", "t", "Flume", "u", True, 0.9, "q")
+    stub_pipeline.found = []
+
+    list(pipeline.run(1, 50, appdb))
+
+    assert stub_pipeline.avoided_by_round == [
+        ["Flume"],
+        ["Flume", "generated"],
+        ["Flume", "generated", "generated2"],
+    ]
 
 
 def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> None:

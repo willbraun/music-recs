@@ -135,5 +135,4 @@ def generate_queries(
         if query.casefold() not in used:
             used.add(query.casefold())
             generated.append(GeneratedQuery(query, "familiar"))
-    print("Generated queries:", generated)
     return generated
