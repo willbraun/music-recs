@@ -13,7 +13,7 @@
 </script>
 
 <section
-	class="flex w-full max-w-md flex-col gap-2 rounded-lg border p-4 text-left text-sm"
+	class="flex w-full flex-col gap-2 rounded-lg border p-4 text-left text-sm"
 	aria-label="Model download"
 >
 	<span class="flex min-w-0 items-center gap-1.5">

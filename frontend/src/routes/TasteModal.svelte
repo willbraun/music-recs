@@ -55,15 +55,12 @@
 				>What music do you like?</Dialog.Title
 			>
 			<Dialog.Description>
-				Your preferences are used to improve your music recommendations.
+				Your preferences are used to recommend music.
 			</Dialog.Description>
 		</Dialog.Header>
 
 		{#if modelCache.status === 'ready' && !isReady}
-			<section
-				class="flex flex-col gap-3 rounded-lg border p-4"
-				aria-labelledby="model-prep-heading"
-			>
+			<section class="flex flex-col gap-3" aria-labelledby="model-prep-heading">
 				{#if downloads.length > 0}
 					<h3 id="model-prep-heading" class="font-medium">
 						Downloading models...
@@ -80,10 +77,10 @@
 					</p>
 				{:else}
 					<h3 id="model-prep-heading" class="font-medium">
-						Get ready to discover
+						Recommended while you enter your preferences.
 					</h3>
 					<p class="text-muted-foreground">
-						Download the AI models needed to generate recommendations locally.
+						Download the AI models needed to generate recommendations.
 					</p>
 					<ul class="flex flex-col gap-2" aria-label="Models to download">
 						{#each pendingModels as model (model.id)}
@@ -110,9 +107,6 @@
 							<DownloadIcon />
 							{failures.length > 0 ? 'Retry Download' : 'Download Models'}
 						</Button>
-						<span class="text-sm text-muted-foreground">
-							Recommended while you enter your preferences.
-						</span>
 					</div>
 				{/if}
 			</section>

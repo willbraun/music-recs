@@ -218,7 +218,7 @@
 				class={`flex w-full flex-col items-center gap-3 ${wasDownloadsVisible ? '' : REVEAL_CLASS}`}
 			>
 				{#each downloads as download (download.model)}
-					<li class="flex w-full justify-center">
+					<li class="flex w-full max-w-lg justify-center">
 						<ModelDownload {download} state={download.state} />
 					</li>
 				{/each}
