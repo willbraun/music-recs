@@ -137,7 +137,7 @@ def test_download_missing_models_skips_cached_models(monkeypatch: pytest.MonkeyP
 
 
 def _fake_hub(monkeypatch: pytest.MonkeyPatch, cached: set[str], sizes: dict[str, int]) -> list[tuple[str, str]]:
-    """Replaces snapshot_download; returns the (model, action) calls in order."""
+    """Replaces snapshot_download and download_model; returns the (model, action) calls in order."""
     calls: list[tuple[str, str]] = []
 
     def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
@@ -146,14 +146,22 @@ def _fake_hub(monkeypatch: pytest.MonkeyPatch, cached: set[str], sizes: dict[str
             if model_id not in cached:
                 raise LocalEntryNotFoundError("missing")
             return "path"
-        if dry_run:
-            calls.append((model_id, "size"))
-            return [SimpleNamespace(file_size=sizes[model_id], will_download=True)]
+        calls.append((model_id, "size"))
+        return [SimpleNamespace(file_size=sizes[model_id], will_download=True)]
+
+    def fake_download_model(model_id: str, total_bytes: int | None):
         calls.append((model_id, "download"))
-        return "path"
+        yield {
+            "type": "download_progress",
+            "model": model_id,
+            "downloaded_bytes": total_bytes,
+            "total_bytes": total_bytes,
+            "bytes_per_second": 0.0,
+            "seconds_remaining": 0.0,
+        }
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
-    monkeypatch.setattr("model_download.POLL_SECONDS", 0.01)
+    monkeypatch.setattr(pipeline, "download_model", fake_download_model)
     return calls
 
 
@@ -227,14 +235,15 @@ def test_download_missing_models_records_a_failure_for_the_model_that_failed(mon
     def fake_download(model_id: str, local_files_only: bool = False, dry_run: bool = False, tqdm_class=None):
         if local_files_only:
             raise LocalEntryNotFoundError("missing")
-        if dry_run:
-            return [SimpleNamespace(file_size=10, will_download=True)]
+        return [SimpleNamespace(file_size=10, will_download=True)]
+
+    def fake_download_model(model_id: str, total_bytes: int | None):
         if model_id == "org/b":
             raise RuntimeError("network down")
-        return "path"
+        return iter(())
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_download)
-    monkeypatch.setattr("model_download.POLL_SECONDS", 0.01)
+    monkeypatch.setattr(pipeline, "download_model", fake_download_model)
 
     with pytest.raises(RuntimeError, match="network down"):
         list(pipeline.download_missing_models(["org/a", "org/b", "org/c"]))

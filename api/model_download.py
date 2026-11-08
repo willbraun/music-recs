@@ -1,6 +1,8 @@
+import multiprocessing
 import threading
 import time
 from collections import deque
+from multiprocessing.connection import Connection
 from typing import Iterator
 
 # Plain constants so listing models does not import torch or mlx; analyze.py and queries.py load these ids.
@@ -18,20 +20,29 @@ RECONSTRUCT_BAR_NAME = "huggingface_hub.snapshot_download"
 TRANSFER_BAR_NAME = RECONSTRUCT_BAR_NAME + ".transfer"
 BYTES_BAR_UNIT = "B"
 
+# A hung connection cannot be cancelled inside a thread, so each attempt runs in a child process that can be killed.
+# Spawn because the API is multithreaded; tests swap in fork so the child inherits their patches.
+_mp_context = multiprocessing.get_context("spawn")
+# A stalled attempt is killed and restarted silently, resuming from the partial files, up to this many times.
+STALL_SECONDS = 60.0
+MAX_STALL_RETRIES = 5
+KILL_GRACE_SECONDS = 5.0
+
 
 class _ByteCounter:
+    """Byte counts in shared memory so the child process can report to the parent."""
+
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._bytes = {RECONSTRUCT_BAR_NAME: 0, TRANSFER_BAR_NAME: 0}
+        self._bytes = {name: _mp_context.Value("q", 0) for name in (RECONSTRUCT_BAR_NAME, TRANSFER_BAR_NAME)}
 
     def add(self, bar_name: str, n: float) -> None:
-        with self._lock:
-            self._bytes[bar_name] += int(n)
+        counter = self._bytes[bar_name]
+        with counter.get_lock():
+            counter.value += int(n)
 
     @property
     def value(self) -> int:
-        with self._lock:
-            return max(self._bytes.values())
+        return max(counter.value for counter in self._bytes.values())
 
 
 class _SpeedWindow:
@@ -184,24 +195,41 @@ def is_download_active(model_id: str) -> bool:
     return entry is not None and entry["state"] != "failed"
 
 
+def _download_in_child(model_id: str, counter: _ByteCounter, error_conn: Connection) -> None:
+    from huggingface_hub import snapshot_download
+
+    try:
+        snapshot_download(model_id, tqdm_class=_make_tqdm_class(counter))
+    except BaseException as e:
+        try:
+            error_conn.send(e)
+        except Exception:
+            # Some exceptions cannot be pickled.
+            error_conn.send(RuntimeError(str(e)))
+
+
+def _receive_error(receiver: Connection) -> BaseException | None:
+    try:
+        return receiver.recv()
+    except EOFError:
+        return None
+
+
+def _stop_process(process) -> None:
+    if process.is_alive():
+        process.terminate()
+        process.join(KILL_GRACE_SECONDS)
+        if process.is_alive():
+            process.kill()
+            process.join()
+
+
 def download_model(model_id: str, total_bytes: int | None) -> Iterator[dict]:
     """Download the model, yielding a download_progress event every POLL_SECONDS and a final one at 100%.
 
+    An attempt with no byte progress for STALL_SECONDS is restarted without any event, up to MAX_STALL_RETRIES times.
     Re-raises any download error so the caller can report it.
     """
-    from huggingface_hub import snapshot_download
-
-    counter = _ByteCounter()
-    finished = threading.Event()
-    errors: list[BaseException] = []
-
-    def work() -> None:
-        try:
-            snapshot_download(model_id, tqdm_class=_make_tqdm_class(counter))
-        except BaseException as e:
-            errors.append(e)
-        finally:
-            finished.set()
 
     def make_event(downloaded: int, bytes_per_second: float, seconds_remaining: float | None) -> dict:
         return {
@@ -213,16 +241,50 @@ def download_model(model_id: str, total_bytes: int | None) -> Iterator[dict]:
             "seconds_remaining": seconds_remaining,
         }
 
-    threading.Thread(target=work, daemon=True).start()
     window = _SpeedWindow(time.monotonic())
-    while not finished.wait(POLL_SECONDS):
-        downloaded = counter.value
-        if total_bytes is not None:
-            downloaded = min(downloaded, total_bytes)
-        speed = window.update(time.monotonic(), downloaded)
-        remaining = (total_bytes - downloaded) / speed if total_bytes is not None and speed > 0 else None
-        yield make_event(downloaded, speed, remaining)
+    # Progress never moves backwards when a retry's counters restart from zero.
+    furthest = 0
+    stalls = 0
+    while True:
+        counter = _ByteCounter()
+        receiver, sender = _mp_context.Pipe(duplex=False)
+        process = _mp_context.Process(target=_download_in_child, args=(model_id, counter, sender), daemon=True)
+        process.start()
+        sender.close()
+        last_value, last_change = 0, time.monotonic()
+        is_stalled = False
+        try:
+            while True:
+                process.join(POLL_SECONDS)
+                if not process.is_alive():
+                    break
+                now = time.monotonic()
+                current = counter.value
+                if current != last_value:
+                    last_value, last_change = current, now
+                elif now - last_change >= STALL_SECONDS:
+                    is_stalled = True
+                    break
+                downloaded = max(furthest, current)
+                if total_bytes is not None:
+                    downloaded = min(downloaded, total_bytes)
+                speed = window.update(now, downloaded)
+                remaining = (total_bytes - downloaded) / speed if total_bytes is not None and speed > 0 else None
+                yield make_event(downloaded, speed, remaining)
+            if not is_stalled:
+                # The pipe reads as EOF, not empty, when the child exited without sending an error.
+                if receiver.poll() and (error := _receive_error(receiver)) is not None:
+                    raise error
+                if process.exitcode != 0:
+                    raise RuntimeError(f"The download process exited with code {process.exitcode}")
+        finally:
+            furthest = max(furthest, counter.value)
+            receiver.close()
+            _stop_process(process)
+        if not is_stalled:
+            break
+        stalls += 1
+        if stalls > MAX_STALL_RETRIES:
+            raise TimeoutError(f"The download made no progress for {STALL_SECONDS:.0f} seconds and was stopped")
 
-    if errors:
-        raise errors[0]
-    yield make_event(total_bytes if total_bytes is not None else counter.value, 0.0, 0.0)
+    yield make_event(total_bytes if total_bytes is not None else furthest, 0.0, 0.0)

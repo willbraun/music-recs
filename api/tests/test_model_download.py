@@ -1,4 +1,5 @@
-import threading
+import multiprocessing
+import time
 from types import SimpleNamespace
 
 import model_download
@@ -26,6 +27,12 @@ def _next_with_bytes(events, downloaded: int) -> dict:
 @pytest.fixture(autouse=True)
 def fast_polling(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(model_download, "POLL_SECONDS", 0.01)
+    # The child inherits the monkeypatched huggingface_hub, which a spawned process would not.
+    monkeypatch.setattr(model_download, "_mp_context", multiprocessing.get_context("fork"))
+
+
+def _make_event():
+    return model_download._mp_context.Event()
 
 
 def test_get_download_size_sums_only_files_that_will_download(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -48,7 +55,7 @@ def test_get_download_size_is_none_when_no_size_is_known(monkeypatch: pytest.Mon
 
 
 def test_download_model_counts_the_reconstruct_bar_and_ignores_other_bars(monkeypatch: pytest.MonkeyPatch) -> None:
-    release = threading.Event()
+    release = _make_event()
 
     def fake_snapshot_download(model_id: str, tqdm_class=None):
         # The three bars huggingface_hub creates; the file-count bar must not add bytes.
@@ -75,7 +82,7 @@ def test_download_model_counts_the_reconstruct_bar_and_ignores_other_bars(monkey
 
 
 def test_download_model_follows_the_transfer_bar_while_reconstruction_lags(monkeypatch: pytest.MonkeyPatch) -> None:
-    release = threading.Event()
+    release = _make_event()
 
     def fake_snapshot_download(model_id: str, tqdm_class=None):
         tqdm_class(disable=True, name=RECONSTRUCT_BAR_NAME, total=0, unit="B").update(100)
@@ -93,7 +100,7 @@ def test_download_model_follows_the_transfer_bar_while_reconstruction_lags(monke
 
 
 def test_download_model_reports_progress_before_the_final_event(monkeypatch: pytest.MonkeyPatch) -> None:
-    release = threading.Event()
+    release = _make_event()
     monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: release.wait(5))
 
     events = download_model("org/model", 1000)
@@ -108,7 +115,7 @@ def test_download_model_reports_progress_before_the_final_event(monkeypatch: pyt
 
 
 def test_download_model_computes_eta_from_speed(monkeypatch: pytest.MonkeyPatch) -> None:
-    release = threading.Event()
+    release = _make_event()
 
     def fake_snapshot_download(model_id: str, tqdm_class=None):
         tqdm_class(disable=True, name=RECONSTRUCT_BAR_NAME, total=0, unit="B").update(100)
@@ -145,6 +152,73 @@ def test_download_model_reraises_download_errors(monkeypatch: pytest.MonkeyPatch
 
     with pytest.raises(RuntimeError, match="network down"):
         list(download_model("org/model", 1000))
+
+
+def test_download_model_restarts_a_stalled_attempt_without_failing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_download, "STALL_SECONDS", 0.3)
+    attempts = model_download._mp_context.Value("i", 0)
+
+    def fake_snapshot_download(model_id: str, tqdm_class=None):
+        with attempts.get_lock():
+            attempts.value += 1
+            attempt = attempts.value
+        bar = tqdm_class(disable=True, name=TRANSFER_BAR_NAME, total=0, unit="B")
+        bar.update(100 if attempt == 1 else 40)
+        if attempt == 1:
+            time.sleep(60)
+        bar.update(60)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+
+    events = list(download_model("org/model", 1000))
+
+    assert attempts.value == 2
+    assert [e["downloaded_bytes"] for e in events] == sorted(e["downloaded_bytes"] for e in events)
+    assert events[-1]["downloaded_bytes"] == 1000
+
+
+def test_download_model_gives_up_after_repeated_stalls(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_download, "STALL_SECONDS", 0.2)
+    monkeypatch.setattr(model_download, "MAX_STALL_RETRIES", 1)
+    attempts = model_download._mp_context.Value("i", 0)
+
+    def fake_snapshot_download(model_id: str, tqdm_class=None):
+        with attempts.get_lock():
+            attempts.value += 1
+        time.sleep(60)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+
+    with pytest.raises(TimeoutError, match="no progress"):
+        list(download_model("org/model", 1000))
+
+    assert attempts.value == 2
+
+
+def test_download_model_reports_a_download_process_that_dies(monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: os._exit(3))
+
+    with pytest.raises(RuntimeError, match="exited with code 3"):
+        list(download_model("org/model", 1000))
+
+
+def test_download_model_stops_the_child_when_the_consumer_stops(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *args, **kwargs: time.sleep(60))
+    started = []
+    real_process = model_download._mp_context.Process
+
+    def record_process(*args, **kwargs):
+        started.append(real_process(*args, **kwargs))
+        return started[-1]
+
+    monkeypatch.setattr(model_download._mp_context, "Process", record_process, raising=False)
+    events = download_model("org/model", 1000)
+    next(events)
+    events.close()
+
+    assert not started[0].is_alive()
 
 
 def test_speed_window_averages_over_the_recent_window() -> None:
