@@ -11,3 +11,6 @@ app.db-shm
 
 # Scripts
 start.sh
+# Desktop app build output
+api/build/
+api/dist/

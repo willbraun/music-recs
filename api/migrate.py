@@ -2,7 +2,9 @@ import re
 import sqlite3
 from pathlib import Path
 
-MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+from paths import RESOURCE_DIR
+
+MIGRATIONS_DIR = RESOURCE_DIR / "migrations"
 _FILE_NAME = re.compile(r"^(\d{14})_[a-z0-9_]+\.sql$")
 
 

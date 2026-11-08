@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import queue
 import threading
 import uuid
@@ -10,14 +11,19 @@ import uvicorn
 from appdb import AppDb
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from model_download import (MODEL_IDS, begin_download, get_download,
                             get_model_size, is_download_active,
                             is_model_downloaded, remove_model)
+from paths import get_frontend_dir, get_port
 from pipeline import NO_TASTE_MESSAGE, download_missing_models, run
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from taste_profile import Taste, TasteProfile, normalize_taste
 
-# The API only serves /api on 127.0.0.1 with no authentication; the frontend runs separately and proxies /api here.
+# Dev: the API only serves /api and the frontend runs separately on Vite, which proxies /api here.
+# Packaged (see paths.get_frontend_dir): it also serves the built frontend, so the app has one http://127.0.0.1 origin.
+# No authentication, bound to 127.0.0.1 only.
 # Errors are {"detail": ...}: a string for 404, 409 and the taste 422, FastAPI's list of objects for other 422s.
 KEEPALIVE_SECONDS = 15
 DEFAULT_PAGE_SIZE = 50
@@ -210,6 +216,26 @@ def delete_model(model_id: str, request: Request) -> None:
     remove_model(model_id)
 
 
+class SpaStaticFiles(StaticFiles):
+    # adapter-static emits only index.html, so client-side routes like /songs fall back to it.
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            # An unknown /api path must stay a 404, not become the app shell.
+            if e.status_code != 404 or path.startswith("api/"):
+                raise
+            return await super().get_response("index.html", scope)
+
+
+frontend_dir = get_frontend_dir()
+if frontend_dir is not None:
+    # Mounted last so it only receives requests no /api route matched.
+    app.mount("/", SpaStaticFiles(directory=frontend_dir, html=True), name="frontend")
+
+
 if __name__ == "__main__":
+    # Required so a frozen build's spawned download processes run their target instead of the server.
+    multiprocessing.freeze_support()
     # Local only; short graceful shutdown because open event streams would otherwise block Ctrl-C.
-    uvicorn.run(app, host="127.0.0.1", port=8000, timeout_graceful_shutdown=3)
+    uvicorn.run(app, host="127.0.0.1", port=get_port(), timeout_graceful_shutdown=3)

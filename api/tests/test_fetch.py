@@ -128,6 +128,21 @@ def test_download_song_skips_non_studio_without_downloading(monkeypatch: pytest.
     assert not ydl.downloaded
 
 
+def test_download_song_uses_the_resolved_ffmpeg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: dict = {}
+
+    def make_ydl(opts: dict) -> _FakeYoutubeDL:
+        seen.update(opts)
+        return _FakeYoutubeDL(opts, _info())
+
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", make_ydl)
+    monkeypatch.setattr(fetch, "get_ffmpeg_path", lambda: "/bundled/ffmpeg")
+
+    fetch._download_song("abc", tmp_path)
+
+    assert seen["ffmpeg_location"] == "/bundled/ffmpeg"
+
+
 def test_download_song_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     ydl = _FakeYoutubeDL({}, _info(), fail_times=fetch.DOWNLOAD_ATTEMPTS - 1)
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)

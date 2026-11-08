@@ -7,6 +7,7 @@ from typing import Iterator
 from urllib.parse import quote_plus
 
 import yt_dlp
+from paths import get_ffmpeg_path
 from yt_dlp.utils import YoutubeDLError
 
 CLIP_SECONDS = 45
@@ -106,6 +107,9 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
         "force_keyframes_at_cuts": True,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
     }
+    ffmpeg_path = get_ffmpeg_path()
+    if ffmpeg_path:
+        opts["ffmpeg_location"] = ffmpeg_path
     url = f"https://www.youtube.com/watch?v={video_id}"
     for attempt in range(DOWNLOAD_ATTEMPTS):
         try:

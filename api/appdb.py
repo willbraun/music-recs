@@ -2,9 +2,10 @@ from pathlib import Path
 
 from db import connect
 from migrate import apply_migrations
+from paths import get_data_dir
 from taste_profile import Taste, TasteProfile
 
-DB_PATH = Path(__file__).parent / "app.db"
+DB_FILE_NAME = "app.db"
 
 
 def get_artist_key(artist: str) -> str:
@@ -15,7 +16,8 @@ def get_artist_key(artist: str) -> str:
 class AppDb:
     """Songs and the user's taste. Schema changes go in api/migrations."""
 
-    def __init__(self, path: Path = DB_PATH):
+    def __init__(self, path: Path | None = None):
+        path = path or get_data_dir() / DB_FILE_NAME
         self._path = path
         with connect(path) as conn:
             apply_migrations(conn)

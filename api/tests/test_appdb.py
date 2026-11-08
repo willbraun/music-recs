@@ -6,6 +6,14 @@ from appdb import AppDb
 from taste_profile import TasteProfile
 
 
+def test_default_path_is_in_the_configured_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MUSIC_RECS_DATA_DIR", str(tmp_path / "data"))
+
+    AppDb()
+
+    assert (tmp_path / "data" / "app.db").is_file()
+
+
 def _add_song(db: AppDb, video_id: str = "abc") -> None:
     db.add_song(video_id, "Title", "Artist", f"https://www.youtube.com/watch?v={video_id}", True, 0.9, "q")
 

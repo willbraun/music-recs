@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from appdb import AppDb
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from model_download import begin_download, fail_download
 from pydantic import ValidationError
@@ -389,3 +390,21 @@ def test_delete_model_rejects_a_model_that_is_not_downloaded(client: TestClient,
 
 def test_delete_model_rejects_an_unknown_model(client: TestClient, models: SimpleNamespace) -> None:
     assert client.delete("/api/models/org/nope").status_code == 404
+
+
+@pytest.fixture
+def spa_client(tmp_path: Path) -> TestClient:
+    (tmp_path / "index.html").write_text("<html>shell</html>")
+    (tmp_path / "robots.txt").write_text("User-agent: *")
+    spa = FastAPI()
+    spa.mount("/", api.SpaStaticFiles(directory=tmp_path, html=True))
+    return TestClient(spa)
+
+
+def test_spa_serves_files_and_falls_back_to_the_shell_for_client_routes(spa_client: TestClient) -> None:
+    assert spa_client.get("/robots.txt").text == "User-agent: *"
+    assert spa_client.get("/songs").text == "<html>shell</html>"
+
+
+def test_spa_keeps_unknown_api_paths_as_404(spa_client: TestClient) -> None:
+    assert spa_client.get("/api/nope").status_code == 404
