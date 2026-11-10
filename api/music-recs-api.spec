@@ -1,5 +1,7 @@
 # PyInstaller spec; build from api/ with `pyinstaller music-recs-api.spec` after `npm run build` in frontend/.
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+import os
+
+from PyInstaller.utils.hooks import collect_all, collect_submodules, get_package_paths
 
 datas = [("migrations", "migrations"), ("../frontend/build", "frontend")]
 binaries = []
@@ -11,6 +13,9 @@ for package in ("mlx", "mlx_audio", "mlx_lm", "imageio_ffmpeg", "huggingface_hub
     datas += package_datas
     binaries += package_binaries
     hiddenimports += package_hiddenimports
+
+# MLX looks for mlx.metallib beside the libmlx.dylib it loaded; PyInstaller loads the copy at the bundle root.
+datas.append((os.path.join(get_package_paths("mlx")[1], "lib", "mlx.metallib"), "."))
 
 # yt-dlp imports its extractors by name.
 hiddenimports += collect_submodules("yt_dlp")
