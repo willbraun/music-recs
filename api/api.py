@@ -1,6 +1,9 @@
 import json
+import logging
 import multiprocessing
+import os
 import queue
+import sys
 import threading
 import uuid
 from contextlib import asynccontextmanager
@@ -15,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from model_download import (MODEL_IDS, begin_download, get_download,
                             get_model_size, is_download_active,
                             is_model_downloaded, remove_model)
-from paths import get_frontend_dir, get_port
+from paths import IS_FROZEN, get_frontend_dir, get_log_path, get_port
 from pipeline import NO_TASTE_MESSAGE, download_missing_models, run
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -27,6 +30,9 @@ from taste_profile import Taste, TasteProfile, normalize_taste
 # Errors are {"detail": ...}: a string for 404, 409 and the taste 422, FastAPI's list of objects for other 422s.
 KEEPALIVE_SECONDS = 15
 DEFAULT_PAGE_SIZE = 50
+MAX_LOG_BYTES = 5_000_000
+
+logger = logging.getLogger(__name__)
 
 
 class RunRequest(BaseModel):
@@ -74,6 +80,7 @@ def _process_jobs(jobs: "queue.Queue[Job]", appdb: AppDb) -> None:
             for event in _generate_events(job, appdb):
                 job.publish(event)
         except Exception as e:
+            logger.exception("Job failed")
             job.publish({"type": "error", "message": str(e)})
         finally:
             job.finish()
@@ -216,6 +223,19 @@ def delete_model(model_id: str, request: Request) -> None:
     remove_model(model_id)
 
 
+def _redirect_output_to_log() -> None:
+    # Launched from Finder the app has no terminal, so stdout/stderr (including ffmpeg's) go to a file in the data dir.
+    path = get_log_path()
+    if path.exists() and path.stat().st_size > MAX_LOG_BYTES:
+        path.unlink()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    os.dup2(fd, sys.stdout.fileno())
+    os.dup2(fd, sys.stderr.fileno())
+    os.close(fd)
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+
+
 class SpaStaticFiles(StaticFiles):
     # adapter-static emits only index.html, so client-side routes like /songs fall back to it.
     async def get_response(self, path: str, scope):
@@ -237,5 +257,8 @@ if frontend_dir is not None:
 if __name__ == "__main__":
     # Required so a frozen build's spawned download processes run their target instead of the server.
     multiprocessing.freeze_support()
+    if IS_FROZEN:
+        _redirect_output_to_log()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     # Local only; short graceful shutdown because open event streams would otherwise block Ctrl-C.
     uvicorn.run(app, host="127.0.0.1", port=get_port(), timeout_graceful_shutdown=3)

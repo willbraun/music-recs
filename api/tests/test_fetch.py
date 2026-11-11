@@ -1,8 +1,10 @@
+import threading
 from pathlib import Path
 
 import fetch
 import pytest
 from fetch import Song, fetch_songs
+from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
 from yt_dlp.utils import DownloadError, UnavailableVideoError
 
 
@@ -141,6 +143,7 @@ def test_download_song_uses_the_resolved_ffmpeg(monkeypatch: pytest.MonkeyPatch,
     fetch._download_song("abc", tmp_path)
 
     assert seen["ffmpeg_location"] == "/bundled/ffmpeg"
+    assert FFmpegPostProcessor._ffmpeg_location.get() == "/bundled/ffmpeg"
 
 
 def test_download_song_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -154,14 +157,39 @@ def test_download_song_gives_up_after_all_attempts(monkeypatch: pytest.MonkeyPat
     ydl = _FakeYoutubeDL({}, _info(), fail_times=fetch.DOWNLOAD_ATTEMPTS)
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
 
-    assert fetch._download_song("abc", tmp_path) is None
+    with pytest.raises(fetch.FetchError, match="boom"):
+        fetch._download_song("abc", tmp_path)
 
 
-def test_download_song_skips_when_the_file_cannot_be_written(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_download_song_fails_when_the_file_cannot_be_written(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     ydl = _FakeYoutubeDL({}, _info(), fail_times=fetch.DOWNLOAD_ATTEMPTS, error="[Errno 2] No such file", error_type=UnavailableVideoError)
     monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
 
-    assert fetch._download_song("abc", tmp_path) is None
+    with pytest.raises(fetch.FetchError):
+        fetch._download_song("abc", tmp_path)
+
+
+def test_download_song_sets_network_timeouts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: dict = {}
+
+    def make_ydl(opts: dict) -> _FakeYoutubeDL:
+        seen.update(opts)
+        return _FakeYoutubeDL(opts, _info())
+
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", make_ydl)
+
+    fetch._download_song("abc", tmp_path)
+
+    assert seen["socket_timeout"] == fetch.SOCKET_TIMEOUT
+    assert seen["external_downloader_args"]["ffmpeg_i"][0] == "-rw_timeout"
+
+
+def test_search_raises_fetch_error_when_youtube_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    ydl = _FakeYoutubeDL({}, None, fail_times=1, error="no network")
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: ydl)
+
+    with pytest.raises(fetch.FetchError, match="no network"):
+        fetch._search("q", 3)
 
 
 def test_download_song_does_not_retry_when_sign_in_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -212,3 +240,40 @@ def test_fetch_songs_returns_nothing_when_no_candidates(monkeypatch: pytest.Monk
     _stub_fetching(monkeypatch, tmp_path, [])
 
     assert list(fetch_songs("q", 2, set(), tmp_path)) == []
+
+
+def _stub_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ids: list[str], failed: set[str]) -> None:
+    def download(video_id: str, workdir: Path) -> Song:
+        if video_id in failed:
+            raise fetch.FetchError("boom")
+        return Song(video_id, "t", "a", "u", tmp_path / video_id)
+
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": i} for i in ids])
+    monkeypatch.setattr(fetch, "_download_song", download)
+
+
+def test_fetch_songs_skips_an_isolated_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _stub_download(monkeypatch, tmp_path, ["a", "b", "c"], failed={"a"})
+
+    assert [s.video_id for s in fetch_songs("q", 2, set(), tmp_path)] == ["b", "c"]
+
+
+def test_fetch_songs_raises_after_consecutive_failures(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ids = [str(i) for i in range(fetch.MAX_CONSECUTIVE_FAILURES + 1)]
+    _stub_download(monkeypatch, tmp_path, ids, failed=set(ids))
+
+    with pytest.raises(fetch.FetchError, match="in a row: boom"):
+        list(fetch_songs("q", 5, set(), tmp_path))
+
+
+def test_fetch_songs_raises_when_a_download_times_out(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    release = threading.Event()
+    monkeypatch.setattr(fetch, "DOWNLOAD_TIMEOUT", 0.05)
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": "a"}])
+    monkeypatch.setattr(fetch, "_download_song", lambda video_id, workdir: release.wait(5))
+
+    try:
+        with pytest.raises(fetch.FetchError, match="timed out"):
+            list(fetch_songs("q", 1, set(), tmp_path))
+    finally:
+        release.set()

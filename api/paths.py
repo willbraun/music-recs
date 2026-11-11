@@ -7,6 +7,7 @@ DATA_DIR_ENV = "MUSIC_RECS_DATA_DIR"
 FRONTEND_DIR_ENV = "MUSIC_RECS_FRONTEND_DIR"
 PORT_ENV = "MUSIC_RECS_PORT"
 DEFAULT_PORT = 8000
+LOG_FILE_NAME = "music-recs.log"
 
 IS_FROZEN = getattr(sys, "frozen", False)
 # Bundled data files live in PyInstaller's extraction dir when frozen.
@@ -33,6 +34,10 @@ def get_frontend_dir() -> Path | None:
 
 def get_port() -> int:
     return int(os.environ.get(PORT_ENV, DEFAULT_PORT))
+
+
+def get_log_path() -> Path:
+    return get_data_dir() / LOG_FILE_NAME
 
 
 def get_ffmpeg_path() -> str | None:

@@ -1,6 +1,8 @@
+import logging
 import re
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -8,6 +10,7 @@ from urllib.parse import quote_plus
 
 import yt_dlp
 from paths import get_ffmpeg_path
+from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
 from yt_dlp.utils import YoutubeDLError
 
 CLIP_SECONDS = 45
@@ -15,8 +18,20 @@ MIN_DURATION = 90
 MAX_DURATION = 480
 MIN_VIEWS = 1000
 OVERFETCH = 3
-DOWNLOAD_WORKERS = 4
+# Single-threaded to avoid being flagged by YouTube for excessive requests
+DOWNLOAD_WORKERS = 1
 DOWNLOAD_ATTEMPTS = 3
+SOCKET_TIMEOUT = 20
+# Bounds one candidate across all its attempts; the stream stalls that SOCKET_TIMEOUT misses end here.
+DOWNLOAD_TIMEOUT = 120
+# This many candidates failing in a row means YouTube is refusing us, not that those videos are bad.
+MAX_CONSECUTIVE_FAILURES = 3
+
+logger = logging.getLogger(__name__)
+
+
+class FetchError(Exception):
+    """Fetching songs failed in a way retrying other candidates will not fix."""
 
 NON_STUDIO = re.compile(
     r"\b(live|remix(es)?|rmx|cover|acoustic|karaoke|instrumental|sped up|slowed|reverb|mix|session|"
@@ -67,9 +82,18 @@ def _is_studio(info: dict) -> bool:
 
 def _search(query: str, limit: int) -> list[dict]:
     url = f"https://music.youtube.com/search?q={quote_plus(query)}#songs"
-    opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist", "playlistend": limit}
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": "in_playlist",
+        "playlistend": limit,
+        "socket_timeout": SOCKET_TIMEOUT,
+    }
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except YoutubeDLError as e:
+        raise FetchError(f"Searching YouTube Music failed: {e}") from e
     # Flat entries only carry id/title/url, so title is the only pre-fetch filter.
     return [
         e
@@ -97,10 +121,13 @@ class _SilentLogger:
 
 
 def _download_song(video_id: str, workdir: Path) -> Song | None:
-    """Fetch metadata and, for studio songs, download the clip; None if rejected or failed."""
+    """Fetch metadata and, for studio songs, download the clip; None if rejected, FetchError if it failed."""
     opts = {
         "quiet": True,
         "no_warnings": True,
+        "socket_timeout": SOCKET_TIMEOUT,
+        # ffmpeg downloads the clip and has no timeout of its own; this is its read/write timeout in microseconds.
+        "external_downloader_args": {"ffmpeg_i": ["-rw_timeout", str(SOCKET_TIMEOUT * 1_000_000)]},
         "format": "bestaudio/best",
         "outtmpl": str(workdir / "%(id)s.%(ext)s"),
         "download_ranges": _select_middle_clip,
@@ -110,6 +137,9 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
     ffmpeg_path = get_ffmpeg_path()
     if ffmpeg_path:
         opts["ffmpeg_location"] = ffmpeg_path
+        # yt-dlp's downloader choice ignores the ffmpeg_location option and looks on PATH, which a Finder-launched app lacks.
+        # The setting is per-thread, so it is set here rather than at startup.
+        FFmpegPostProcessor._ffmpeg_location.set(ffmpeg_path)
     url = f"https://www.youtube.com/watch?v={video_id}"
     for attempt in range(DOWNLOAD_ATTEMPTS):
         try:
@@ -121,11 +151,13 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
                 ydl.process_ie_result(info, download=True)
             break
         except YoutubeDLError as e:
-            # A sign-in requirement belongs to the video, so retrying cannot help.
-            # ffmpeg fails sporadically (HTTP errors on the stream URL); a fresh extraction usually fixes it.
-            if attempt == DOWNLOAD_ATTEMPTS - 1 or "Please sign in" in str(e):
-                print(f"Skipping {video_id}: {e}")
+            logger.warning("Attempt %d/%d for %s failed: %s", attempt + 1, DOWNLOAD_ATTEMPTS, video_id, e)
+            # An age-gate sign-in belongs to the video, so retrying cannot help and the video is just skipped.
+            if "Please sign in" in str(e):
                 return None
+            # ffmpeg fails sporadically (HTTP errors on the stream URL); a fresh extraction usually fixes it.
+            if attempt == DOWNLOAD_ATTEMPTS - 1:
+                raise FetchError(str(e)) from e
     return Song(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav")
 
 
@@ -135,25 +167,41 @@ def fetch_songs(
     """Yield up to `count` studio-song audio clips; record considered ids in `skip_ids`.
 
     Up to DOWNLOAD_WORKERS candidates are fetched ahead of the consumer, in search order.
+    Raises FetchError when MAX_CONSECUTIVE_FAILURES candidates fail in a row or one exceeds DOWNLOAD_TIMEOUT.
     """
     # Search can list a video twice; parallel downloads of one id would clobber each other's .part file.
     unique_ids = dict.fromkeys(e["id"] for e in _search(query, count * OVERFETCH))
     candidates = iter([video_id for video_id in unique_ids if video_id not in skip_ids])
     pending: deque[Future[Song | None]] = deque()
     yielded = 0
-    with ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as pool:
-        try:
-            while yielded < count:
-                while len(pending) < DOWNLOAD_WORKERS and (video_id := next(candidates, None)):
-                    skip_ids.add(video_id)
-                    pending.append(pool.submit(_download_song, video_id, workdir))
-                if not pending:
-                    return
-                song = pending.popleft().result()
-                if song is None:
-                    continue
-                yielded += 1
-                yield song
-        finally:
-            for future in pending:
-                future.cancel()
+    failures = 0
+    pool = ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS)
+    # A timed-out download cannot be interrupted, so waiting for it on exit would hang again.
+    timed_out = False
+    try:
+        while yielded < count:
+            while len(pending) < DOWNLOAD_WORKERS and (video_id := next(candidates, None)):
+                skip_ids.add(video_id)
+                pending.append(pool.submit(_download_song, video_id, workdir))
+            if not pending:
+                return
+            try:
+                song = pending.popleft().result(timeout=DOWNLOAD_TIMEOUT)
+            except FutureTimeoutError:
+                timed_out = True
+                logger.error("A download made no progress for %d seconds", DOWNLOAD_TIMEOUT)
+                raise FetchError(f"Downloading from YouTube timed out after {DOWNLOAD_TIMEOUT} seconds") from None
+            except FetchError as e:
+                failures += 1
+                if failures >= MAX_CONSECUTIVE_FAILURES:
+                    raise FetchError(f"Downloading from YouTube failed {failures} times in a row: {e}") from e
+                continue
+            failures = 0
+            if song is None:
+                continue
+            yielded += 1
+            yield song
+    finally:
+        for future in pending:
+            future.cancel()
+        pool.shutdown(wait=not timed_out)
