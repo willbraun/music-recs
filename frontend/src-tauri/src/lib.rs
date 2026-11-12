@@ -101,7 +101,8 @@ pub fn run() {
                     });
                 match result {
                     Ok(port) => {
-                        let url = format!("http://127.0.0.1:{port}");
+                        // YouTube rejects embeds (error 150) from a 127.0.0.1 origin but accepts localhost.
+                        let url = format!("http://localhost:{port}");
                         let _ = window.navigate(url.parse().unwrap());
                     }
                     Err(message) => show_error(&window, &message),

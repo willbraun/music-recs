@@ -25,7 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from taste_profile import Taste, TasteProfile, normalize_taste
 
 # Dev: the API only serves /api and the frontend runs separately on Vite, which proxies /api here.
-# Packaged (see paths.get_frontend_dir): it also serves the built frontend, so the app has one http://127.0.0.1 origin.
+# Packaged (see paths.get_frontend_dir): it also serves the built frontend, so the app has one http://localhost origin.
 # No authentication, bound to 127.0.0.1 only.
 # Errors are {"detail": ...}: a string for 404, 409 and the taste 422, FastAPI's list of objects for other 422s.
 KEEPALIVE_SECONDS = 15

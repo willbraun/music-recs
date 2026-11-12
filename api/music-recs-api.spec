@@ -14,13 +14,24 @@ for package in ("mlx", "mlx_audio", "mlx_lm", "imageio_ffmpeg", "huggingface_hub
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 
-# MLX looks for mlx.metallib beside the libmlx.dylib it loaded; PyInstaller loads the copy at the bundle root.
+# C++ headers and CMake files are only for building MLX extensions.
+datas = [(src, dest) for src, dest in datas if not dest.startswith(("mlx/include", "mlx/share", "mlx/lib/cmake"))]
+
+# Tauri copies bundle resources without symlinks, so the app loads the root libmlx.dylib and MLX looks for the metallib beside it.
+datas = [(src, dest) for src, dest in datas if os.path.basename(src) != "mlx.metallib"]
 datas.append((os.path.join(get_package_paths("mlx")[1], "lib", "mlx.metallib"), "."))
 
 # yt-dlp imports its extractors by name.
 hiddenimports += collect_submodules("yt_dlp")
 
-analysis = Analysis(["api.py"], datas=datas, binaries=binaries, hiddenimports=hiddenimports)
+# Unused by the app, but transformers and mlx-audio probe for them and PyInstaller bundles whatever is installed.
+excludes = [
+    "torch", "torchaudio", "torchvision", "torchgen", "functorch", "accelerate",
+    "numba", "llvmlite", "librosa", "sklearn", "matplotlib", "pandas", "IPython", "pytest", "tkinter",
+    "muq", "laya", "x_clip", "nnaudio",
+]
+
+analysis = Analysis(["api.py"], datas=datas, binaries=binaries, hiddenimports=hiddenimports, excludes=excludes)
 pyz = PYZ(analysis.pure)
 
 # onedir: a onefile build would re-extract the large MLX stack on every launch.
