@@ -1,4 +1,5 @@
 import type { Song } from '#lib/api.js'
+import { openExternalUrl } from '#lib/links.js'
 import { toast } from 'svelte-sonner'
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
@@ -289,7 +290,7 @@ function handleError(event: { data: number }) {
 		toast.error(message, {
 			action: {
 				label: 'Open on YouTube',
-				onClick: () => window.open(song.url, '_blank', 'noopener,noreferrer'),
+				onClick: () => void openExternalUrl(song.url),
 			},
 		})
 	} else {
