@@ -34,7 +34,7 @@ The code and its comments are the only source of truth. Start from these files:
 
 Development runs the API on `127.0.0.1:8000` and the Vite dev server on `localhost:5173`, which proxies `/api`. `start.sh` starts both. In development the API does not serve the frontend.
 
-The desktop app (`build-desktop.sh`) is a Tauri shell in `frontend/src-tauri/` around a PyInstaller build of the API (`api/music-recs-api.spec`). The packaged API serves the built frontend itself (`api/paths.py` reads `MUSIC_RECS_*` environment variables), and Tauri loads it from `http://localhost:<port>` (YouTube rejects embeds from a 127.0.0.1 origin).
+The desktop app (`build.sh`) is a Tauri shell in `frontend/src-tauri/` around a PyInstaller build of the API (`api/music-recs-api.spec`). The packaged API serves the built frontend itself (`api/paths.py` reads `MUSIC_RECS_*` environment variables), and Tauri loads it from `http://localhost:<port>` (YouTube rejects embeds from a 127.0.0.1 origin).
 
 ## Source of Truth
 
