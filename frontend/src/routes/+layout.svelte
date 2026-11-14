@@ -1,5 +1,4 @@
 <script lang="ts">
-	import favicon from '#lib/assets/favicon.svg'
 	import DiscardTasteDialog from '#lib/components/DiscardTasteDialog.svelte'
 	import Header from '#lib/components/Header.svelte'
 	import Player from '#lib/components/Player.svelte'
@@ -23,10 +22,6 @@
 </script>
 
 <svelte:document onclick={handleExternalLinkClick} />
-
-<svelte:head>
-	<link rel="icon" href={favicon} />
-</svelte:head>
 
 <ModeWatcher defaultMode="dark" />
 <Toaster />
