@@ -8,6 +8,7 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"tauri": "tauri",
+		"icons": "node scripts/generate-icons.mjs",
 		"tauri:dev": "tauri dev",
 		"tauri:build": "tauri build --target aarch64-apple-darwin --config src-tauri/tauri.bundle.conf.json",
 		"test": "vitest run",

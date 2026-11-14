@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<defs><linearGradient id="g" x1="54" y1="0" x2="94" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ff6ac9"/><stop offset="1" stop-color="#ffd95e"/></linearGradient></defs>
+<rect x="0" y="0" width="1024" height="1024" rx="0" fill="#0a0a0a"/>
+<g transform="translate(512 512) scale(7.2727272727272725) translate(-50 -50)">
+<g fill="none" stroke="#fafafa" stroke-width="6"><rect x="9" y="9" width="34" height="34" rx="5"/><rect x="9" y="57" width="34" height="34" rx="5"/><rect x="57" y="57" width="34" height="34" rx="5"/></g>
+<path fill="url(#g)" fill-rule="evenodd" d="M62 6H86A8 8 0 0 1 94 14V38A8 8 0 0 1 86 46H62A8 8 0 0 1 54 38V14A8 8 0 0 1 62 6Z M59.5 29.5a3.5 3.5 0 0 1 7 0v8.5a3.5 3.5 0 0 1-7 0Z M70.5 14a3.5 3.5 0 0 1 7 0v24a3.5 3.5 0 0 1-7 0Z M81.5 21.75a3.5 3.5 0 0 1 7 0v16.25a3.5 3.5 0 0 1-7 0Z"/>
+</g>
+</svg>
