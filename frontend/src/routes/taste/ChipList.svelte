@@ -1,6 +1,6 @@
 <script lang="ts">
+	import XIcon from '#lib/components/icons/X.svelte'
 	import { Badge } from '#lib/components/ui/badge/index.js'
-	import XIcon from '@lucide/svelte/icons/x'
 
 	let {
 		items,

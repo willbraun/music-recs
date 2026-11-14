@@ -1,7 +1,7 @@
 <script lang="ts">
-	import AppleIcon from '#lib/components/icons/Apple.svelte'
-	import SpotifyIcon from '#lib/components/icons/Spotify.svelte'
-	import YouTubeIcon from '#lib/components/icons/YouTube.svelte'
+	import AppleIcon from '#lib/components/icons/logos/Apple.svelte'
+	import SpotifyIcon from '#lib/components/icons/logos/Spotify.svelte'
+	import YouTubeIcon from '#lib/components/icons/logos/YouTube.svelte'
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
 	import {

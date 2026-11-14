@@ -20,10 +20,10 @@ while ! nc -z localhost 5173; do
   sleep 1
 done
 
-# Open new Chrome window
-osascript -e 'tell application "Google Chrome"
-  make new window
-  set URL of active tab of front window to "http://localhost:5173"
-end tell' || echo "Failed to open Chrome window. Please open manually."
+# Open new Safari window, since Tauri uses WebKit
+osascript -e 'tell application "Safari"
+  activate
+  make new document with properties {URL:"http://localhost:5173"}
+end tell' || echo "Failed to open Safari window. Please open manually."
 
 wait

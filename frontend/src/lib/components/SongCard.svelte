@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Song } from '#lib/api.js'
-	import AppleIcon from '#lib/components/icons/Apple.svelte'
-	import SpotifyIcon from '#lib/components/icons/Spotify.svelte'
-	import YouTubeIcon from '#lib/components/icons/YouTube.svelte'
+	import AppleIcon from '#lib/components/icons/logos/Apple.svelte'
+	import SpotifyIcon from '#lib/components/icons/logos/Spotify.svelte'
+	import YouTubeIcon from '#lib/components/icons/logos/YouTube.svelte'
 	import { Badge } from '#lib/components/ui/badge/index.js'
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js'
 	import {
