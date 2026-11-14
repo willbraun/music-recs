@@ -125,7 +125,7 @@ afterEach(() => {
 	document.body.style.removeProperty('pointer-events')
 })
 
-describe('home page', () => {
+describe('discover page', () => {
 	it('shows the heading and description', () => {
 		render(Page)
 

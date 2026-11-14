@@ -125,7 +125,8 @@
 		</div>
 	{:else if songs.length === 0}
 		<p class="py-12 text-center text-muted-foreground">
-			No songs yet. Find some on the <a href="/" class="underline">Home page</a
+			No songs yet. Find some on the <a href="/" class="underline"
+				>Discover page</a
 			>.
 		</p>
 	{:else}
