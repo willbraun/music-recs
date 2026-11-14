@@ -127,7 +127,22 @@ def client(tmp_path: Path) -> TestClient:
     api.app.state.appdb = AppDb(tmp_path / "app.db")
     api.app.state.jobs = {}
     api.app.state.queue = queue.Queue()
-    return TestClient(api.app)
+    return TestClient(api.app, base_url="http://localhost")
+
+
+@pytest.mark.parametrize("host", ["evil.example", "evil.example:8000", "localhost.evil.example"])
+def test_rejects_non_loopback_host(client: TestClient, host: str) -> None:
+    assert client.get("/api/taste", headers={"Host": host}).status_code == 403
+
+
+def test_rejects_cross_origin_request(client: TestClient) -> None:
+    response = client.post("/api/runs", json={}, headers={"Origin": "https://evil.example"})
+    assert response.status_code == 403
+
+
+def test_accepts_same_origin_request(client: TestClient) -> None:
+    response = client.get("/api/taste", headers={"Host": "localhost:5173", "Origin": "http://localhost:5173"})
+    assert response.status_code != 403
 
 
 def test_start_run_queues_a_job_and_returns_its_id(client: TestClient) -> None:

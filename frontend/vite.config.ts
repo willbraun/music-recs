@@ -24,7 +24,8 @@ export default defineConfig({
 		},
 		proxy: {
 			// The Python API from api/api.py; it does not serve the frontend. The run events stream is SSE.
-			'/api': 'http://127.0.0.1:8000',
+			// The shorthand string form rewrites Host; the API needs the browser's Host to match its Origin.
+			'/api': { target: 'http://127.0.0.1:8000', changeOrigin: false },
 		},
 	},
 	test: {

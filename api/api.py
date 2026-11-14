@@ -13,7 +13,7 @@ from typing import Annotated, Iterator
 import uvicorn
 from appdb import AppDb
 from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from model_download import (MODEL_IDS, begin_download, get_download,
                             get_model_size, is_download_active,
@@ -26,7 +26,7 @@ from taste_profile import Taste, TasteProfile, normalize_taste
 
 # Dev: the API only serves /api and the frontend runs separately on Vite, which proxies /api here.
 # Packaged (see paths.get_frontend_dir): it also serves the built frontend, so the app has one http://localhost origin.
-# No authentication, bound to 127.0.0.1 only.
+# No authentication, bound to 127.0.0.1 only; LocalOnlyMiddleware rejects non-loopback Hosts and cross-origin requests.
 # Errors are {"detail": ...}: a string for 404, 409 and the taste 422, FastAPI's list of objects for other 422s.
 KEEPALIVE_SECONDS = 15
 DEFAULT_PAGE_SIZE = 50
@@ -113,7 +113,34 @@ async def manage_lifespan(app: FastAPI):
     yield
 
 
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+
+
+class LocalOnlyMiddleware:
+    """Rejects requests a web page could send to this local API: a rebound DNS name (Host) or another origin (Origin)."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] in ("http", "websocket"):
+            headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope["headers"]}
+            host = headers.get("host", "")
+            origin = headers.get("origin")
+            # Same-origin only: the packaged app and the Vite proxy both keep the Host the browser used.
+            hostname = host.partition("]")[0] + "]" if host.startswith("[") else host.partition(":")[0]
+            allowed = hostname in LOOPBACK_HOSTS
+            if allowed and origin is not None:
+                allowed = origin == f"http://{host}"
+            if not allowed:
+                if scope["type"] == "http":
+                    await JSONResponse({"detail": "Forbidden"}, status_code=403)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(lifespan=manage_lifespan)
+app.add_middleware(LocalOnlyMiddleware)
 
 
 @app.post("/api/runs", status_code=202)
