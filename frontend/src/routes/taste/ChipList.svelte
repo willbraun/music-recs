@@ -19,7 +19,10 @@
 	<ul class="flex flex-wrap gap-1.5" aria-label={label}>
 		{#each items as item (item)}
 			<li>
-				<Badge variant="secondary" class="h-6 gap-1 pr-1 pl-2.5">
+				<Badge
+					variant="secondary"
+					class="h-6 gap-1 border border-foreground/15 pr-1 pl-2.5"
+				>
 					{item}
 					<button
 						type="button"

@@ -63,40 +63,44 @@
 
 <form class="flex flex-col gap-6" onsubmit={submitTaste}>
 	<div class="grid gap-4 sm:grid-cols-2">
-		<fieldset class="flex min-w-0 flex-col gap-4 rounded-lg border p-4">
+		<fieldset class="min-w-0 rounded-lg border p-4">
 			<legend class="px-2 text-lg font-medium">I like</legend>
-			<GenreCombobox
-				id="liked-genres"
-				label="Genres"
-				bind:selected={form.liked_genres}
-				blocked={form.disliked_genres}
-				blockedHint="In your dislikes"
-			/>
-			<TagInput
-				id="liked-artists"
-				label="Artists"
-				bind:items={form.liked_artists}
-				blocked={form.disliked_artists}
-				blockedMessage="Already in your dislikes"
-			/>
+			<div class="flex flex-col gap-4">
+				<GenreCombobox
+					id="liked-genres"
+					label="Genres"
+					bind:selected={form.liked_genres}
+					blocked={form.disliked_genres}
+					blockedHint="In your dislikes"
+				/>
+				<TagInput
+					id="liked-artists"
+					label="Artists"
+					bind:items={form.liked_artists}
+					blocked={form.disliked_artists}
+					blockedMessage="Already in your dislikes"
+				/>
+			</div>
 		</fieldset>
 
-		<fieldset class="flex min-w-0 flex-col gap-4 rounded-lg border p-4">
+		<fieldset class="min-w-0 rounded-lg border p-4">
 			<legend class="px-2 text-lg font-medium">I don't like</legend>
-			<GenreCombobox
-				id="disliked-genres"
-				label="Genres"
-				bind:selected={form.disliked_genres}
-				blocked={form.liked_genres}
-				blockedHint="In your likes"
-			/>
-			<TagInput
-				id="disliked-artists"
-				label="Artists"
-				bind:items={form.disliked_artists}
-				blocked={form.liked_artists}
-				blockedMessage="Already in your likes"
-			/>
+			<div class="flex flex-col gap-4">
+				<GenreCombobox
+					id="disliked-genres"
+					label="Genres"
+					bind:selected={form.disliked_genres}
+					blocked={form.liked_genres}
+					blockedHint="In your likes"
+				/>
+				<TagInput
+					id="disliked-artists"
+					label="Artists"
+					bind:items={form.disliked_artists}
+					blocked={form.liked_artists}
+					blockedMessage="Already in your likes"
+				/>
+			</div>
 		</fieldset>
 	</div>
 
