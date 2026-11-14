@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state'
+	import MusicRecs from './icons/logos/MusicRecs.svelte'
 
 	const NAV_LINKS = [
 		{ href: '/', label: 'Discover' },
@@ -15,7 +16,10 @@
 		class="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3"
 		aria-label="Main"
 	>
-		<a href="/" class="mr-auto font-semibold">Music Recs</a>
+		<a href="/" class="mr-auto flex items-center gap-4 font-semibold">
+			<MusicRecs />
+			<p>Music Recs</p>
+		</a>
 		{#each NAV_LINKS as link (link.href)}
 			{@const isActive = page.url.pathname === link.href}
 			<a
