@@ -12,6 +12,7 @@
 		normalizeNotes,
 	} from '#lib/profile.js'
 	import { saveTasteResult, taste } from '#lib/taste.svelte.js'
+	import { tasteDraft } from '#lib/tasteDraft.svelte.js'
 	import { toast } from 'svelte-sonner'
 	import GenreCombobox from './GenreCombobox.svelte'
 	import TagInput from './TagInput.svelte'
@@ -31,9 +32,15 @@
 	const hasLike = $derived(
 		form.liked_genres.length > 0 || form.liked_artists.length > 0
 	)
-	const canSave = $derived(
-		hasLike && !isSaving && !isSameProfile(form, savedProfile)
-	)
+	const isDirty = $derived(!isSameProfile(form, savedProfile))
+	const canSave = $derived(hasLike && !isSaving && isDirty)
+
+	$effect(() => {
+		tasteDraft.isDirty = isDirty
+	})
+	$effect(() => () => {
+		tasteDraft.isDirty = false
+	})
 
 	async function submitTaste(event: SubmitEvent) {
 		event.preventDefault()
@@ -66,6 +73,9 @@
 		<fieldset class="min-w-0 rounded-lg border p-4">
 			<legend class="px-2 text-lg font-medium">I like</legend>
 			<div class="flex flex-col gap-4">
+				{#if !hasLike}
+					<p class="text-sm text-muted-foreground">At least one is required</p>
+				{/if}
 				<GenreCombobox
 					id="liked-genres"
 					label="Genres"

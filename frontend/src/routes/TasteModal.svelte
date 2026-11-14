@@ -12,6 +12,7 @@
 		modelCache,
 	} from '#lib/modelCache.svelte.js'
 	import { findModel } from '#lib/models.js'
+	import { requestLeave, tasteDraft } from '#lib/tasteDraft.svelte.js'
 	import DownloadIcon from '@lucide/svelte/icons/download'
 	import TasteForm from './taste/TasteForm.svelte'
 
@@ -49,8 +50,25 @@
 	}
 </script>
 
-<Dialog.Root bind:open>
-	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+<Dialog.Root
+	bind:open={
+		() => open,
+		(next) => {
+			if (next) open = true
+			else requestLeave(() => (open = false))
+		}
+	}
+>
+	<Dialog.Content
+		class="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+		onInteractOutside={(event) => {
+			// The discard confirmation is portaled, so it reads as "outside" here.
+			if (tasteDraft.pendingLeave) event.preventDefault()
+		}}
+		onEscapeKeydown={(event) => {
+			if (tasteDraft.pendingLeave) event.preventDefault()
+		}}
+	>
 		<Dialog.Header>
 			<Dialog.Title class="text-xl font-semibold"
 				>What music do you like?</Dialog.Title

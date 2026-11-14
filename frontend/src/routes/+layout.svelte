@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '#lib/assets/favicon.svg'
+	import DiscardTasteDialog from '#lib/components/DiscardTasteDialog.svelte'
 	import Header from '#lib/components/Header.svelte'
 	import Player from '#lib/components/Player.svelte'
 	import { Toaster } from '#lib/components/ui/sonner/index.js'
@@ -29,6 +30,7 @@
 
 <ModeWatcher defaultMode="dark" />
 <Toaster />
+<DiscardTasteDialog />
 
 <Header />
 
