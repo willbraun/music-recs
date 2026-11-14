@@ -20,7 +20,9 @@ describe('ModelDownload', () => {
 	it('shows the friendly model name', () => {
 		render(ModelDownloadPanel, { download: makeDownload() })
 
-		expect(screen.getByText('MOSS Music 8B Instruct (MLX 5-bit)')).toBeInTheDocument()
+		expect(
+			screen.getByText('MOSS Music 8B Instruct (MLX 5-bit)')
+		).toBeInTheDocument()
 		expect(
 			screen.queryByText('FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit')
 		).not.toBeInTheDocument()
@@ -121,5 +123,25 @@ describe('ModelDownload', () => {
 		expect(screen.getByText(/Waiting/)).toBeInTheDocument()
 		expect(screen.getByText(/4\.8 GB/)).toBeInTheDocument()
 		expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+	})
+
+	it('shows the purpose instead of the progress before the download starts', () => {
+		render(ModelDownloadPanel, {
+			modelId: 'Qwen/Qwen3-8B-MLX-4bit',
+		})
+
+		expect(screen.getByText('Qwen3 8B (MLX 4-bit)')).toBeInTheDocument()
+		expect(screen.getByText(/Translates your taste/)).toBeInTheDocument()
+		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+	})
+
+	it('hides the purpose once the download starts', () => {
+		render(ModelDownloadPanel, {
+			modelId: 'Qwen/Qwen3-8B-MLX-4bit',
+			download: makeDownload({ model: 'Qwen/Qwen3-8B-MLX-4bit' }),
+		})
+
+		expect(screen.queryByText(/Translates your taste/)).not.toBeInTheDocument()
+		expect(screen.getByRole('progressbar')).toBeInTheDocument()
 	})
 })

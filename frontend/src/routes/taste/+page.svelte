@@ -14,7 +14,7 @@
 		<h1 class="text-3xl font-semibold tracking-tight">Taste</h1>
 		{#if taste.status === 'none'}
 			<p class="text-muted-foreground">
-				Enter your musical preferences to get started
+				Enter your musical taste to get started
 			</p>
 		{/if}
 	</div>

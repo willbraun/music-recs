@@ -487,7 +487,7 @@ describe('first-run taste flow', () => {
 		).not.toBeInTheDocument()
 		expect(
 			screen.getByText(
-				'You can continue entering your preferences while they download.'
+				'You can continue entering your musical taste while they download.'
 			)
 		).toBeInTheDocument()
 	})

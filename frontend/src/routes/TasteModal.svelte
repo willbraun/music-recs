@@ -11,7 +11,7 @@
 		getMissingModelsSize,
 		modelCache,
 	} from '#lib/modelCache.svelte.js'
-	import { findModel, MODELS } from '#lib/models.js'
+	import { findModel } from '#lib/models.js'
 	import DownloadIcon from '@lucide/svelte/icons/download'
 	import TasteForm from './taste/TasteForm.svelte'
 
@@ -23,10 +23,11 @@
 
 	let downloads = $derived(getActiveDownloads())
 	let isReady = $derived(areModelsDownloaded())
+	// Failed downloads show the pre-download state again, with the error below.
 	let pendingModels = $derived(
 		getMissingModels().map((item) => ({
-			...findModel(item.id),
-			purpose: MODELS.find((model) => model.id === item.id)?.purpose,
+			id: item.id,
+			download: downloads.find((download) => download.model === item.id),
 		}))
 	)
 	let failures = $derived(
@@ -54,48 +55,43 @@
 			<Dialog.Title class="text-xl font-semibold"
 				>What music do you like?</Dialog.Title
 			>
-			<Dialog.Description>
-				Your preferences are used to recommend music.
-			</Dialog.Description>
 		</Dialog.Header>
 
 		{#if modelCache.status === 'ready' && !isReady}
-			<section class="flex flex-col gap-3" aria-labelledby="model-prep-heading">
+			<section
+				class="flex flex-col gap-3 rounded-lg border p-4 font-medium"
+				aria-labelledby="model-prep-heading"
+			>
 				{#if downloads.length > 0}
 					<h3 id="model-prep-heading" class="font-medium">
 						Downloading models...
 					</h3>
-					<ul class="flex flex-col gap-3">
-						{#each downloads as download (download.model)}
-							<li>
-								<ModelDownload {download} state={download.state} />
-							</li>
-						{/each}
-					</ul>
-					<p class="text-muted-foreground">
-						You can continue entering your preferences while they download.
-					</p>
 				{:else}
 					<h3 id="model-prep-heading" class="font-medium">
-						Recommended while you enter your preferences.
+						Recommended while you enter your musical taste
 					</h3>
 					<p class="text-muted-foreground">
 						Download the AI models needed to generate recommendations.
-					</p>
-					<ul class="flex flex-col gap-2" aria-label="Models to download">
-						{#each pendingModels as model (model.id)}
-							<li class="flex flex-col">
-								<span class="font-medium">{model.name}</span>
-								{#if model.purpose}
-									<span class="text-muted-foreground">{model.purpose}</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-					<p class="text-muted-foreground">
 						{#if size !== null}About {formatBytes(size)},
-						{/if}{' '}this may take a while
+						{/if}{' '}this may take a while.
 					</p>
+				{/if}
+				<ul class="flex flex-col gap-3" aria-label="Models to download">
+					{#each pendingModels as model (model.id)}
+						<li>
+							<ModelDownload
+								modelId={model.id}
+								download={model.download}
+								state={model.download?.state}
+							/>
+						</li>
+					{/each}
+				</ul>
+				{#if downloads.length > 0}
+					<p class="text-muted-foreground">
+						You can continue entering your musical taste while they download.
+					</p>
+				{:else}
 					{#each failures as item (item.id)}
 						<p class="text-destructive" role="alert">
 							{findModel(item.id).name}: {item.download?.error ??

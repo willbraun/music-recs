@@ -79,7 +79,7 @@ describe('taste page', () => {
 		render(Page)
 
 		expect(
-			screen.getByText('Enter your musical preferences to get started')
+			screen.getByText('Enter your musical taste to get started')
 		).toBeInTheDocument()
 		expect(getSaveButton()).toBeDisabled()
 	})

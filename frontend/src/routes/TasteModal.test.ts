@@ -45,7 +45,7 @@ describe('TasteModal', () => {
 	it('omits the size when it is unknown', () => {
 		render(TasteModal, { open: true })
 
-		expect(screen.getByText('this may take a while')).toBeInTheDocument()
+		expect(screen.getByText(/this may take a while/)).toBeInTheDocument()
 		expect(screen.queryByText(/About/)).not.toBeInTheDocument()
 	})
 

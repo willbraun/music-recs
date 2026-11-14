@@ -1,15 +1,22 @@
 <script lang="ts">
 	import type { ModelDownload, ModelDownloadState } from '#lib/api.js'
-	import { findModel } from '#lib/models.js'
+	import { findModel, MODELS } from '#lib/models.js'
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
 	import DownloadProgress from './DownloadProgress.svelte'
 
+	// Without a download, the panel is the pre-download state and shows the model's purpose.
 	let {
 		download,
+		modelId,
 		state = 'downloading',
-	}: { download: ModelDownload; state?: ModelDownloadState } = $props()
+	}: {
+		download?: ModelDownload
+		modelId?: string
+		state?: ModelDownloadState
+	} = $props()
 
-	let model = $derived(findModel(download.model))
+	let model = $derived(findModel(modelId ?? download?.model ?? ''))
+	let purpose = $derived(MODELS.find((item) => item.id === model.id)?.purpose)
 </script>
 
 <section
@@ -29,5 +36,9 @@
 			<ExternalLinkIcon class="size-4" />
 		</a>
 	</span>
-	<DownloadProgress {download} {state} name={model.name} />
+	{#if download}
+		<DownloadProgress {download} {state} name={model.name} />
+	{:else if purpose}
+		<p class="text-muted-foreground">{purpose}</p>
+	{/if}
 </section>

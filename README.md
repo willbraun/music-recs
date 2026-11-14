@@ -1,6 +1,6 @@
 # Music Recs
 
-Music Recs is a local music recommendation tool. It finds music online, analyzes it with local audio models, and recommends songs based on your musical preferences.
+Music Recs is a local music recommendation tool. It finds music online, analyzes it with local audio models, and recommends songs based on your musical taste.
 
 ## Models
 
