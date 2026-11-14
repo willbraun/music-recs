@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # MusicBrainz asks every client to identify itself. Set the contact to your own address.
 APP_VERSION = "0.1"
-CONTACT = "williamhbraun1@gmail.com"
+CONTACT = "will@racquetrivals.com"
 USER_AGENT = f"music-recs/{APP_VERSION} ({CONTACT})"
 
 MUSICBRAINZ_URL = "https://musicbrainz.org/ws/2/recording/"
