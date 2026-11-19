@@ -1,10 +1,10 @@
 # Building the desktop app
 
-`scripts/build.sh` builds the macOS (Apple Silicon) app and DMG.
+`scripts/build.sh` builds the macOS (Apple Silicon) app and DMG. No Apple credentials are needed: without `APPLE_SIGNING_IDENTITY` the build is simply unsigned, which is fine for local use. Other Macs show a Gatekeeper warning for an unsigned app. Signing and notarization are only needed for distributable releases.
 
 ## Signing
 
-It signs the app with your Developer ID when `APPLE_SIGNING_IDENTITY` is set, either in the environment or in a git-ignored `.env` at the repo root. Without it, the build is unsigned. `scripts/sign-api.sh` signs the frozen API first, because Tauri does not sign resource files itself.
+The build signs the app with your Developer ID when `APPLE_SIGNING_IDENTITY` is set, either in the environment or in a git-ignored `.env` at the repo root. `scripts/sign-api.sh` signs the frozen API first, because Tauri does not sign resource files itself.
 
 ## Notarization
 
