@@ -12,3 +12,10 @@ app.db-shm
 # Desktop app build output
 api/build/
 api/dist/
+
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
