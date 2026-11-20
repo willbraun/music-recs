@@ -17,16 +17,16 @@
 		{
 			name: 'Disk Space',
 			detail:
-				'About 13 GB free for the two models, which are stored in the Hugging Face cache.',
+				'At least 12 GB free for the two models, which are stored in the Hugging Face cache.',
 		},
 		{
 			name: 'Memory',
 			detail:
-				'16 GB or more of unified memory. The models load one at a time, so Qwen3 8B (about 5 GB of weights) and MOSS Music (about 8 GB at peak) each fit within it.',
+				'16 GB or more of unified memory. The models load one at a time, so peak usage is around 9 GB while MOSS Music analyzes a clip, which covers its weights (about 8 GB) plus working memory for the audio. The rest is left for macOS and your other apps.',
 		},
 		{
 			name: 'Processor',
-			detail: 'Apple Silicon, which the MLX builds of both models require.',
+			detail: 'Apple Silicon',
 		},
 		{
 			name: 'Operating System',
@@ -51,6 +51,17 @@
 			Music Recs finds music online, analyzes it with an audio model running on
 			this computer, and recommends songs based on your musical taste. Your
 			taste and the songs it analyzes are stored locally.
+		</p>
+		<p class="mt-4 text-muted-foreground">
+			Version {__APP_VERSION__} · © 2026 Will Braun ·
+			<a
+				class={LINK_CLASS}
+				href="/licenses/mit.txt"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				MIT License</a
+			>
 		</p>
 	</div>
 

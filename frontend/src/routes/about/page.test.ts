@@ -20,6 +20,17 @@ describe('about page', () => {
 		expect(steps.length).toBeGreaterThan(0)
 	})
 
+	it('shows the app version, copyright and license link', () => {
+		render(Page)
+
+		expect(screen.getByText(/Version \d+\.\d+\.\d+/)).toBeInTheDocument()
+		expect(screen.getByText(/© 2026 Will Braun/)).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'MIT License' })).toHaveAttribute(
+			'href',
+			'/licenses/mit.txt'
+		)
+	})
+
 	it('lists the system requirements', () => {
 		render(Page)
 		const section = screen.getByRole('region', { name: 'System Requirements' })

@@ -1,10 +1,10 @@
 [package]
-name = "app"
+name = "music-recs"
 version = "0.1.0"
 description = "Music Recs desktop app"
-authors = []
-license = ""
-repository = ""
+authors = ["Will Braun"]
+license = "MIT"
+repository = "https://github.com/willbraun/music-recs"
 edition = "2024"
 rust-version = "1.90"
 

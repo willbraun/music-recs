@@ -2,9 +2,25 @@ import adapter from '@sveltejs/adapter-static'
 import { sveltekit } from '@sveltejs/kit/vite'
 import tailwindcss from '@tailwindcss/vite'
 import { svelteTesting } from '@testing-library/svelte/vite'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
 
+// The app version lives only in Cargo.toml, which Tauri uses for the bundle.
+function readAppVersion(): string {
+	const cargo = readFileSync(
+		new URL('./src-tauri/Cargo.toml', import.meta.url),
+		'utf8'
+	)
+	const match = cargo.match(/^version\s*=\s*"([^"]+)"/m)
+	if (!match)
+		throw new Error('No package version found in src-tauri/Cargo.toml')
+	return match[1]
+}
+
 export default defineConfig({
+	define: {
+		__APP_VERSION__: JSON.stringify(readAppVersion()),
+	},
 	plugins: [
 		tailwindcss(),
 		sveltekit({
