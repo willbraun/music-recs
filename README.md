@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.svg" alt="Music Recs logo" width="120">
+</p>
+
 # Music Recs
 
 Music Recs is a desktop app that recommends songs based on your musical taste. It finds music online and analyzes it with local audio models, so your taste and listening history stay on your device.
