@@ -58,7 +58,7 @@ Use the paths under `frontend/src-tauri/target/aarch64-apple-darwin/release/bund
 `.github/workflows/release.yml` builds, signs and notarizes the app, then publishes a GitHub Release:
 
 1. Bump `version` in `frontend/src-tauri/Cargo.toml` (and `Cargo.lock`), and merge it to `main`.
-2. In GitHub, open Actions > Release > Run workflow on `main`, and enter the version, for example `v0.1.0`. It must match `Cargo.toml`.
+2. In GitHub, open Actions > Release > Run workflow on `main`, and enter the version with a leading `v`, for example `v0.1.0`. The `X.Y.Z` part must match the `version` in `Cargo.toml`, which has no `v`. For a test run, enter a suffixed version such as `v0.1.0-rc1` and check `prerelease`; the suffix is ignored when matching `Cargo.toml`, so no version bump is needed.
 3. The workflow creates the tag and a release with generated notes, the dmg and its sha256.
 
 Signing secrets live only in the `production-release` environment (Settings > Environments), never in repository secrets, so CI cannot read them:
