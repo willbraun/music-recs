@@ -34,9 +34,12 @@ fi
 
 (cd "$ROOT/frontend" && npm run tauri:build)
 
+# Sign the Tauri app bundle if APPLE_SIGNING_IDENTITY is set
 if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
 	APP="$ROOT/frontend/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Music Recs.app"
 	codesign --verify --deep --strict --verbose=2 "$APP"
+
+	# Notarize the app if NOTARIZE=1 is set
 	if [ "${NOTARIZE:-}" = "1" ]; then
 		xcrun stapler validate "$APP"
 		spctl -a -vv -t exec "$APP"

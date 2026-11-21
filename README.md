@@ -2,6 +2,8 @@
 
 Music Recs is a local music recommendation tool. It finds music online, analyzes it with local audio models, and recommends songs based on your musical taste.
 
+Download the latest version from the [Releases page](https://github.com/willbraun/music-recs/releases/latest). It requires an Apple Silicon Mac.
+
 ## Models
 
 Music Recs uses two models, which are downloaded from Hugging Face and run on your computer:
