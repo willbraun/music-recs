@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag, e.g. v1.0.0. The X.Y.Z part must match the version in frontend/src-tauri/Cargo.toml, which has no leading v. A suffix such as -rc1 is allowed for prereleases."
+        description: 'Version tag, e.g. v1.0.0. The X.Y.Z part must match the version in frontend/src-tauri/Cargo.toml, which has no leading v. A suffix such as -rc1 is allowed for prereleases.'
         required: true
         type: string
       prerelease:
-        description: "Mark as a pre-release"
+        description: 'Mark as a pre-release'
         type: boolean
         default: false
 
@@ -22,7 +22,8 @@ concurrency:
 jobs:
   build:
     # Add a matrix (e.g. a Windows entry) here when other platforms are supported.
-    runs-on: macos-15
+    # Use pinned versions to ensure consistent release build environments.
+    runs-on: macos-26
     timeout-minutes: 120
     environment: production-release
     env:
@@ -92,7 +93,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: '3.13'
           cache: pip
           cache-dependency-path: api/requirements.lock
       - uses: dtolnay/rust-toolchain@stable
@@ -131,7 +132,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE: "1"
+          NOTARIZE: '1'
         run: scripts/build.sh
 
       - name: Verify signature, notarization and Gatekeeper
