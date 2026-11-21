@@ -27,6 +27,7 @@ jobs:
     environment: production-release
     env:
       VERSION: ${{ inputs.version }}
+      PRERELEASE: ${{ inputs.prerelease }}
     outputs:
       sha: ${{ steps.source.outputs.sha }}
     steps:
@@ -36,10 +37,36 @@ jobs:
             echo "Invalid version '$VERSION'; expected vX.Y.Z" >&2
             exit 1
           fi
+          if [[ "$VERSION" == *-* && "$PRERELEASE" != "true" ]]; then
+            echo "$VERSION has a suffix, so 'prerelease' must be checked" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" != *-* && "$PRERELEASE" == "true" ]]; then
+            echo "'prerelease' is checked but $VERSION has no suffix like -rc1" >&2
+            exit 1
+          fi
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "Releases must run from main" >&2
             exit 1
           fi
+
+      - name: Check signing secrets are set
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=0
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Secret $name is not set in the production-release environment" >&2
+              missing=1
+            fi
+          done
+          exit $missing
 
       - uses: actions/checkout@v7
 
