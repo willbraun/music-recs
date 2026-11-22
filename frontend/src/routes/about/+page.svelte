@@ -1,5 +1,9 @@
 <script lang="ts">
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw'
+	import { Button } from '#lib/components/ui/button/index.js'
 	import { MODELS } from '#lib/models.js'
+	import { checkForUpdates, RELEASES_URL, update } from '#lib/update.svelte.js'
 
 	const LINK_CLASS =
 		'rounded-sm underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
@@ -35,7 +39,7 @@
 		{
 			name: 'Internet',
 			detail:
-				'Needed to download the models from Hugging Face, search and fetch audio from YouTube Music, and look up artwork from MusicBrainz and the Cover Art Archive.',
+				'Needed to download the models from Hugging Face, search and fetch audio from YouTube Music, look up artwork from MusicBrainz and the Cover Art Archive, and check GitHub for new releases.',
 		},
 	]
 </script>
@@ -63,6 +67,41 @@
 				MIT License</a
 			>
 		</p>
+		<div class="flex flex-wrap items-center gap-3 text-sm">
+			{#if update.latestVersion}
+				<Button
+					href={RELEASES_URL}
+					target="_blank"
+					rel="noopener noreferrer"
+					size="sm"
+				>
+					Version {update.latestVersion} is available
+					<ExternalLinkIcon aria-hidden="true" />
+				</Button>
+			{:else}
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={update.status === 'checking'}
+					onclick={() => checkForUpdates()}
+				>
+					{update.status === 'checking' ? 'Checking...' : 'Check For Updates'}
+					<RefreshCwIcon
+						class={update.status === 'checking'
+							? 'animate-spin motion-reduce:animate-none'
+							: ''}
+						aria-hidden="true"
+					/>
+				</Button>
+				<p class="text-muted-foreground" role="status">
+					{#if update.status === 'up-to-date'}
+						You're up to date.
+					{:else if update.status === 'error'}
+						Could not check for updates: {update.error}
+					{/if}
+				</p>
+			{/if}
+		</div>
 	</div>
 
 	<section class="flex flex-col gap-3" aria-labelledby="how-heading">

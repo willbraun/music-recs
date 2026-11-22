@@ -61,6 +61,8 @@ Use the paths under `frontend/src-tauri/target/aarch64-apple-darwin/release/bund
 2. In GitHub, open Actions > Release > Run workflow on `main`, and enter the version with a leading `v`, for example `v0.1.0`. The `X.Y.Z` part must match the `version` in `Cargo.toml`, which has no `v`. For a test run, enter a suffixed version such as `v0.1.0-rc1` and check `prerelease`; the suffix is ignored when matching `Cargo.toml`, so no version bump is needed.
 3. The workflow creates the tag and a release with generated notes, the dmg and its sha256.
 
+The app checks `releases/latest` on GitHub at launch and every 24 hours, so only stable releases are offered; prereleases are ignored, and a repository with no stable release shows "up to date". To try the update notice in development without a release, run the dev server with a higher version, for example `VITE_UPDATE_TEST_VERSION=9.9.9 scripts/start.sh`. The override is ignored in production builds.
+
 Signing secrets live only in the `production-release` environment (Settings > Environments), never in repository secrets, so CI cannot read them:
 
 - `APPLE_CERTIFICATE`: the Developer ID Application certificate and private key exported as a `.p12`, base64-encoded (`base64 -i cert.p12`)

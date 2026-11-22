@@ -43,6 +43,8 @@ npm run dev
 npm run dev -- --open
 ```
 
+To try the update notice without a release, set a higher version than `src-tauri/Cargo.toml`: `VITE_UPDATE_TEST_VERSION=9.9.9 npm run dev`. It only applies to the dev server.
+
 ## Building
 
 To create a production version of your app:

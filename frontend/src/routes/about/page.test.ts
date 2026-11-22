@@ -1,8 +1,23 @@
 import { cleanup, render, screen, within } from '@testing-library/svelte'
-import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { checkForUpdatesMock } = vi.hoisted(() => ({
+	checkForUpdatesMock: vi.fn(),
+}))
+
+vi.mock('#lib/update.svelte.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/update.svelte.js')>()),
+	checkForUpdates: checkForUpdatesMock,
+}))
+
+import { update } from '#lib/update.svelte.js'
 import Page from './+page.svelte'
 
-afterEach(cleanup)
+afterEach(() => {
+	cleanup()
+	Object.assign(update, { status: 'idle', latestVersion: null, error: null })
+})
 
 describe('about page', () => {
 	it('describes what the app does and how it works', () => {
@@ -70,5 +85,51 @@ describe('about page', () => {
 		expect(
 			within(section).getByRole('link', { name: 'Apache License 2.0' })
 		).toHaveAttribute('href', '/licenses/apache-2.0.txt')
+	})
+
+	it('checks for updates when the button is pressed', async () => {
+		render(Page)
+		await userEvent.click(
+			screen.getByRole('button', { name: 'Check For Updates' })
+		)
+
+		expect(checkForUpdatesMock).toHaveBeenCalledTimes(1)
+	})
+
+	it('disables the button while checking', () => {
+		update.status = 'checking'
+		render(Page)
+
+		expect(screen.getByRole('button', { name: 'Checking...' })).toBeDisabled()
+	})
+
+	it('shows the result of an update check', () => {
+		update.status = 'up-to-date'
+		const { unmount } = render(Page)
+		expect(screen.getByRole('status')).toHaveTextContent("You're up to date.")
+		unmount()
+
+		Object.assign(update, { status: 'error', error: 'offline' })
+		render(Page)
+		expect(screen.getByRole('status')).toHaveTextContent(
+			'Could not check for updates: offline'
+		)
+	})
+
+	it('replaces the check button with a link to the release when an update is available', () => {
+		Object.assign(update, { status: 'available', latestVersion: '0.2.0' })
+		render(Page)
+
+		const link = screen.getByRole('link', {
+			name: 'Version 0.2.0 is available',
+		})
+		expect(link).toHaveAttribute(
+			'href',
+			'https://github.com/willbraun/music-recs/releases/latest'
+		)
+		expect(link).toHaveAttribute('target', '_blank')
+		expect(
+			screen.queryByRole('button', { name: 'Check For Updates' })
+		).toBeNull()
 	})
 })

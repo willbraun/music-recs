@@ -7,6 +7,7 @@
 	import { player } from '#lib/player.svelte.js'
 	import { closeRunStream, resumeRun } from '#lib/run.svelte.js'
 	import { loadTaste } from '#lib/taste.svelte.js'
+	import { startAutoUpdateCheck } from '#lib/update.svelte.js'
 	import { ModeWatcher } from 'mode-watcher'
 	import { onDestroy, onMount } from 'svelte'
 	import type { LayoutProps } from './$types'
@@ -17,6 +18,7 @@
 	onMount(() => {
 		void loadTaste()
 		resumeRun()
+		return startAutoUpdateCheck()
 	})
 	onDestroy(closeRunStream)
 </script>

@@ -13,7 +13,8 @@ while ! nc -z localhost 8000; do
   sleep 1
 done
 
-# Start the frontend development server
+# Start the frontend development server.
+# To test the update notice, run e.g. VITE_UPDATE_TEST_VERSION=9.9.9 scripts/start.sh
 (cd "$ROOT/frontend" && exec npm run dev) &
 FRONTEND_PID=$!
 while ! nc -z localhost 5173; do

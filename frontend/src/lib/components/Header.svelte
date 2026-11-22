@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state'
+	import { RELEASES_URL, update } from '#lib/update.svelte.js'
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
+	import { Button } from '#lib/components/ui/button/index.js'
 	import MusicRecs from './icons/logos/MusicRecs.svelte'
 
 	const NAV_LINKS = [
@@ -20,6 +23,18 @@
 			<MusicRecs />
 			<p>Music Recs</p>
 		</a>
+		{#if update.latestVersion}
+			<Button
+				href={RELEASES_URL}
+				target="_blank"
+				rel="noopener noreferrer"
+				size="sm"
+				title="Version {update.latestVersion} is available"
+			>
+				New Version Available
+				<ExternalLinkIcon aria-hidden="true" />
+			</Button>
+		{/if}
 		{#each NAV_LINKS as link (link.href)}
 			{@const isActive = page.url.pathname === link.href}
 			<a

@@ -7,9 +7,13 @@ const { pageMock } = vi.hoisted(() => ({
 
 vi.mock('$app/state', () => ({ page: pageMock }))
 
+import { update } from '#lib/update.svelte.js'
 import Header from './Header.svelte'
 
-afterEach(cleanup)
+afterEach(() => {
+	cleanup()
+	update.latestVersion = null
+})
 
 describe('Header', () => {
 	it('links the brand and every page from the main navigation', () => {
@@ -65,5 +69,26 @@ describe('Header', () => {
 		render(Header)
 
 		expect(screen.queryByRole('link', { current: 'page' })).toBeNull()
+	})
+
+	it('offers no update button by default', () => {
+		render(Header)
+
+		expect(
+			screen.queryByRole('link', { name: 'New Version Available' })
+		).toBeNull()
+	})
+
+	it('links to the latest release when a new version is available', () => {
+		update.latestVersion = '0.2.0'
+		render(Header)
+
+		const button = screen.getByRole('link', { name: 'New Version Available' })
+		expect(button).toHaveAttribute(
+			'href',
+			'https://github.com/willbraun/music-recs/releases/latest'
+		)
+		expect(button).toHaveAttribute('target', '_blank')
+		expect(button).toHaveAttribute('title', 'Version 0.2.0 is available')
 	})
 })

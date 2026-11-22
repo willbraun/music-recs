@@ -137,10 +137,7 @@ describe('startNewRun', () => {
 
 describe('handleRunEvent', () => {
 	it.each([
-		[
-			{ type: 'started', count: 3, exploration: 50 },
-			'Reading your taste...',
-		],
+		[{ type: 'started', count: 3, exploration: 50 }, 'Reading your taste...'],
 		[{ type: 'queries', queries: [] }, 'Searching...'],
 		[{ type: 'fetching' }, 'Finding songs...'],
 	] as [RunEvent, string][])('sets the status for %o', (event, status) => {
