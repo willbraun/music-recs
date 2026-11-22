@@ -7,6 +7,7 @@ import {
 } from './update.svelte'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const MIN_CHECKING_MS = 1000
 
 function mockRelease(tag: string) {
 	return new Response(JSON.stringify({ tag_name: tag }), { status: 200 })
@@ -32,7 +33,14 @@ describe('isNewerVersion', () => {
 describe('checkForUpdates', () => {
 	const fetchMock = vi.fn()
 
+	// A manual check holds "Checking..." for a minimum time, so advance past it.
+	async function finishCheck(check: Promise<void>) {
+		await vi.advanceTimersByTimeAsync(MIN_CHECKING_MS)
+		await check
+	}
+
 	beforeEach(() => {
+		vi.useFakeTimers()
 		vi.stubGlobal('fetch', fetchMock)
 		vi.stubGlobal('__APP_VERSION__', '0.1.0')
 		vi.stubEnv('VITE_UPDATE_TEST_VERSION', '')
@@ -45,13 +53,14 @@ describe('checkForUpdates', () => {
 	})
 
 	afterEach(() => {
+		vi.useRealTimers()
 		vi.unstubAllGlobals()
 		vi.unstubAllEnvs()
 	})
 
 	it('reports a newer release', async () => {
 		fetchMock.mockResolvedValue(mockRelease('v0.2.0'))
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(update).toMatchObject({
 			status: 'available',
@@ -62,7 +71,7 @@ describe('checkForUpdates', () => {
 
 	it('reports up to date for the same version', async () => {
 		fetchMock.mockResolvedValue(mockRelease('v0.1.0'))
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(update.status).toBe('up-to-date')
 		expect(update.latestVersion).toBeNull()
@@ -70,7 +79,7 @@ describe('checkForUpdates', () => {
 
 	it('treats a 404 (no stable release yet) as up to date', async () => {
 		fetchMock.mockResolvedValue(new Response('{}', { status: 404 }))
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(update.status).toBe('up-to-date')
 	})
@@ -84,7 +93,7 @@ describe('checkForUpdates', () => {
 		['a malformed tag', () => Promise.resolve(mockRelease('nightly'))],
 	])('shows %s from a manual check', async (_name, respond) => {
 		fetchMock.mockImplementation(respond)
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(update.status).toBe('error')
 		expect(update.error).toBeTruthy()
@@ -102,7 +111,7 @@ describe('checkForUpdates', () => {
 		fetchMock.mockResolvedValueOnce(mockRelease('v0.2.0'))
 		await checkForUpdates({ silent: true })
 		fetchMock.mockRejectedValueOnce(new Error('offline'))
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(update.status).toBe('available')
 		expect(update.latestVersion).toBe('0.2.0')
@@ -114,7 +123,7 @@ describe('checkForUpdates', () => {
 		const first = checkForUpdates()
 		const second = checkForUpdates()
 		resolve(mockRelease('v0.2.0'))
-		await Promise.all([first, second])
+		await finishCheck(Promise.all([first, second]).then(() => {}))
 
 		expect(fetchMock).toHaveBeenCalledTimes(1)
 		expect(update.status).toBe('available')
@@ -127,16 +136,27 @@ describe('checkForUpdates', () => {
 		const manual = checkForUpdates()
 		expect(update.status).toBe('checking')
 		reject(new Error('offline'))
-		await Promise.all([silent, manual])
+		await finishCheck(Promise.all([silent, manual]).then(() => {}))
 
 		expect(fetchMock).toHaveBeenCalledTimes(1)
 		expect(update.status).toBe('error')
 		expect(update.error).toBe('offline')
 	})
 
+	it('keeps showing checking until the minimum time has passed', async () => {
+		fetchMock.mockResolvedValue(mockRelease('v0.1.0'))
+		const check = checkForUpdates()
+		await vi.advanceTimersByTimeAsync(MIN_CHECKING_MS - 1)
+		expect(update.status).toBe('checking')
+
+		await vi.advanceTimersByTimeAsync(1)
+		await check
+		expect(update.status).toBe('up-to-date')
+	})
+
 	it('uses the dev override as the latest version without calling GitHub', async () => {
 		vi.stubEnv('VITE_UPDATE_TEST_VERSION', '9.9.9')
-		await checkForUpdates()
+		await finishCheck(checkForUpdates())
 
 		expect(fetchMock).not.toHaveBeenCalled()
 		expect(update.latestVersion).toBe('9.9.9')

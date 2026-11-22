@@ -12,6 +12,8 @@ export const RELEASES_URL =
 const LATEST_RELEASE_API =
 	'https://api.github.com/repos/willbraun/music-recs/releases/latest'
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
+// A manual check shows "Checking..." for at least this long, so the click visibly does something.
+const MIN_CHECKING_MS = 1000
 
 export const update: UpdateState = $state({
 	status: 'idle',
@@ -57,10 +59,17 @@ async function fetchLatestVersion(): Promise<string | null> {
 
 let inFlight: Promise<void> | null = null
 let reportErrors = false
+let manualCheckStartedAt = 0
+
+function waitForMinimumChecking(): Promise<void> {
+	if (!reportErrors) return Promise.resolve()
+	const remaining = MIN_CHECKING_MS - (Date.now() - manualCheckStartedAt)
+	return new Promise((resolve) => setTimeout(resolve, Math.max(0, remaining)))
+}
 
 async function runCheck() {
 	try {
-		const latest = await fetchLatestVersion()
+		const latest = await fetchLatestVersion().finally(waitForMinimumChecking)
 		if (latest && isNewerVersion(latest, __APP_VERSION__)) {
 			update.latestVersion = latest.replace(/^v/, '')
 			update.status = 'available'
@@ -86,6 +95,7 @@ async function runCheck() {
 export function checkForUpdates({ silent = false } = {}): Promise<void> {
 	if (!silent) {
 		reportErrors = true
+		manualCheckStartedAt = Date.now()
 		update.status = 'checking'
 		update.error = null
 	}
