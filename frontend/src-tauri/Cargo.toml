@@ -1,6 +1,6 @@
 [package]
 name = "music-recs"
-version = "0.1.1"
+version = "1.0.0"
 description = "Music Recs desktop app"
 authors = ["Will Braun"]
 license = "MIT"
