@@ -14,6 +14,7 @@
 		info,
 		status,
 		isBusy,
+		busyWith,
 		isRemoving,
 		onDownload,
 		onRemove,
@@ -22,6 +23,7 @@
 		status: ModelStatus
 		// A run or download is queued or running, so the model cannot be removed.
 		isBusy: boolean
+		busyWith: 'run' | 'download'
 		isRemoving: boolean
 		onDownload: () => void
 		onRemove: () => void
@@ -128,7 +130,7 @@
 			</Button>
 			{#if isBusy && !isRemoving}
 				<span class="text-muted-foreground">
-					Available once the current run or download finishes.
+					Available once the current {busyWith} finishes.
 				</span>
 			{/if}
 		</div>

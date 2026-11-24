@@ -22,12 +22,17 @@ const onRemove = vi.fn()
 
 function renderCard(
 	status: ModelStatus,
-	props: { isBusy?: boolean; isRemoving?: boolean } = {}
+	props: {
+		isBusy?: boolean
+		busyWith?: 'run' | 'download'
+		isRemoving?: boolean
+	} = {}
 ) {
 	return render(ModelCard, {
 		info,
 		status,
 		isBusy: false,
+		busyWith: 'run',
 		isRemoving: false,
 		onDownload,
 		onRemove,
@@ -203,14 +208,25 @@ describe('ModelCard', () => {
 			expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 		})
 
-		it('disables Remove with an explanation while a run or download is busy', () => {
+		it('disables Remove and names the running job while busy', () => {
 			renderCard(makeStatus({ downloaded: true }), { isBusy: true })
 
 			expect(
 				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)' })
 			).toBeDisabled()
 			expect(
-				screen.getByText('Available once the current run or download finishes.')
+				screen.getByText('Available once the current run finishes.')
+			).toBeInTheDocument()
+		})
+
+		it('names the download when a download is the busy job', () => {
+			renderCard(makeStatus({ downloaded: true }), {
+				isBusy: true,
+				busyWith: 'download',
+			})
+
+			expect(
+				screen.getByText('Available once the current download finishes.')
 			).toBeInTheDocument()
 		})
 

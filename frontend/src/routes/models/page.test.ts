@@ -23,7 +23,8 @@ const {
 	},
 }))
 
-vi.mock('#lib/modelCache.svelte.js', () => ({
+vi.mock('#lib/modelCache.svelte.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/modelCache.svelte.js')>()),
 	modelCache,
 	downloadModel: downloadModelMock,
 	loadModelCache: loadModelCacheMock,
@@ -145,6 +146,29 @@ describe('models page', () => {
 		expect(
 			screen.getByRole('button', { name: 'Remove Qwen3 8B (MLX 4-bit)' })
 		).toBeDisabled()
+		expect(
+			screen.getByText('Available once the current run finishes.')
+		).toBeInTheDocument()
+	})
+
+	it('names the download when one is in progress', () => {
+		modelCache.busy = true
+		modelCache.items = [
+			makeStatus(QWEN, { downloaded: true }),
+			makeStatus(MOSS, {
+				download: {
+					state: 'downloading',
+					downloaded_bytes: 1,
+					total_bytes: 2,
+					error: null,
+				} as ModelStatus['download'],
+			}),
+		]
+		render(Page)
+
+		expect(
+			screen.getByText('Available once the current download finishes.')
+		).toBeInTheDocument()
 	})
 
 	it('skips a model the page has no details for', () => {

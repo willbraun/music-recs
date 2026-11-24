@@ -3,6 +3,7 @@
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js'
 	import {
 		downloadModel,
+		isDownloadActive,
 		loadModelCache,
 		modelCache,
 		removeModelFiles,
@@ -13,6 +14,10 @@
 	import ModelCard from './ModelCard.svelte'
 
 	onMount(watchModelCache)
+
+	let busyWith = $derived<'run' | 'download'>(
+		modelCache.items.some(isDownloadActive) ? 'download' : 'run'
+	)
 </script>
 
 <svelte:head>
@@ -55,6 +60,7 @@
 							{info}
 							{status}
 							isBusy={modelCache.busy}
+							{busyWith}
 							isRemoving={modelCache.removing.includes(status.id)}
 							onDownload={() => downloadModel(status.id)}
 							onRemove={() => removeModelFiles(status.id)}
