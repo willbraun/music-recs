@@ -56,6 +56,12 @@ vi.mock('#lib/run.svelte.js', () => ({
 	RUN_QUEUE_ORIGIN: 'run',
 }))
 
+import {
+	DEFAULT_COUNT,
+	DEFAULT_EXPLORATION,
+	setDiscoverCount,
+	setDiscoverExploration,
+} from '#lib/discoverSettings.svelte.js'
 import { modelCache } from '#lib/modelCache.svelte.js'
 import { run } from '#lib/run.svelte.js'
 import { clearTaste, saveTasteResult, taste } from '#lib/taste.svelte.js'
@@ -101,6 +107,8 @@ function makeActiveDownload(
 }
 
 beforeEach(() => {
+	setDiscoverCount(DEFAULT_COUNT)
+	setDiscoverExploration(DEFAULT_EXPLORATION)
 	run.phase = 'idle'
 	run.status = ''
 	run.cards = []
@@ -186,6 +194,22 @@ describe('discover page', () => {
 		)
 
 		expect(startNewRunMock).toHaveBeenCalledWith(4, 50)
+	})
+
+	it('keeps the settings after leaving and returning to the page', async () => {
+		const { unmount } = render(Page)
+		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+		await userEvent.click(screen.getByLabelText('More songs'))
+		await fireEvent.keyDown(screen.getByRole('slider', { hidden: true }), {
+			key: 'ArrowRight',
+		})
+		unmount()
+
+		render(Page)
+		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('4')
+		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('51%')
 	})
 
 	it('stops the stepper at 1', async () => {

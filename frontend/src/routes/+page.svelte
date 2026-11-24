@@ -4,6 +4,13 @@
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js'
 	import { Slider } from '#lib/components/ui/slider/index.js'
 	import {
+		discoverSettings,
+		MAX_COUNT,
+		MIN_COUNT,
+		setDiscoverCount,
+		setDiscoverExploration,
+	} from '#lib/discoverSettings.svelte.js'
+	import {
 		areModelsDownloaded,
 		getActiveDownloads,
 		modelCache,
@@ -29,13 +36,9 @@
 	import SongCard from '../lib/components/SongCard.svelte'
 	import TasteModal from './TasteModal.svelte'
 
-	const MIN_COUNT = 1
-	const MAX_COUNT = 50
 	const REVEAL_CLASS =
 		'animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none'
 
-	let count = $state(3)
-	let exploration = $state(50)
 	let isTasteModalOpen = $state(false)
 	// Set when Discover opens with no taste and no models, to follow the first-run flow until the first run.
 	let isFirstRun = $state(false)
@@ -96,7 +99,7 @@
 		event.preventDefault()
 		if (isRunActive || isDownloading) return
 		isFirstRun = false
-		void startNewRun(count, exploration)
+		void startNewRun(discoverSettings.count, discoverSettings.exploration)
 	}
 </script>
 
@@ -158,22 +161,22 @@
 									variant="outline"
 									size="icon"
 									aria-label="Fewer songs"
-									disabled={isRunActive || count <= MIN_COUNT}
-									onclick={() => count--}
+									disabled={isRunActive || discoverSettings.count <= MIN_COUNT}
+									onclick={() => setDiscoverCount(discoverSettings.count - 1)}
 								>
 									<MinusIcon />
 								</Button>
 								<output
 									class="w-8 text-center text-lg font-semibold tabular-nums"
-									aria-label="Songs to find">{count}</output
+									aria-label="Songs to find">{discoverSettings.count}</output
 								>
 								<Button
 									type="button"
 									variant="outline"
 									size="icon"
 									aria-label="More songs"
-									disabled={isRunActive || count >= MAX_COUNT}
-									onclick={() => count++}
+									disabled={isRunActive || discoverSettings.count >= MAX_COUNT}
+									onclick={() => setDiscoverCount(discoverSettings.count + 1)}
 								>
 									<PlusIcon />
 								</Button>
@@ -187,7 +190,8 @@
 								>
 								<output
 									class="text-muted-foreground tabular-nums"
-									aria-label="Exploration level">{exploration}%</output
+									aria-label="Exploration level"
+									>{discoverSettings.exploration}%</output
 								>
 							</div>
 							<Slider
@@ -195,7 +199,8 @@
 								min={0}
 								max={100}
 								step={1}
-								bind:value={exploration}
+								value={discoverSettings.exploration}
+								onValueChange={setDiscoverExploration}
 								disabled={isRunActive}
 								aria-labelledby="exploration-label"
 							/>
