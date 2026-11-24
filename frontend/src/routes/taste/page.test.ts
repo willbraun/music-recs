@@ -174,7 +174,9 @@ describe('taste page', () => {
 		await userEvent.click(getSaveButton())
 
 		await vi.waitFor(() =>
-			expect(toastErrorMock).toHaveBeenCalledWith('Request failed (500)')
+			expect(toastErrorMock).toHaveBeenCalledWith('Request failed (500)', {
+				duration: Infinity,
+			})
 		)
 		expect(screen.queryByRole('alert')).toBeNull()
 	})

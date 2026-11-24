@@ -126,7 +126,8 @@ describe('loadModelCache', () => {
 		await loadModelCache()
 
 		expect(toastMock.error).toHaveBeenCalledWith(
-			'MOSS Music 8B Instruct (MLX 5-bit): network down'
+			'MOSS Music 8B Instruct (MLX 5-bit): network down',
+			{ duration: Infinity }
 		)
 	})
 
@@ -192,7 +193,10 @@ describe('downloadModel', () => {
 
 		await downloadModel(MOSS)
 
-		expect(toastMock.error).toHaveBeenCalledWith('Model is already downloaded')
+		expect(toastMock.error).toHaveBeenCalledWith(
+			'Model is already downloaded',
+			{ duration: Infinity }
+		)
 		expect(listModelsMock).toHaveBeenCalled()
 	})
 })
@@ -303,7 +307,8 @@ describe('removeModelFiles', () => {
 		await removeModelFiles(MOSS)
 
 		expect(toastMock.error).toHaveBeenCalledWith(
-			'Wait for the current run or download to finish'
+			'Wait for the current run or download to finish',
+			{ duration: Infinity }
 		)
 		expect(toastMock.success).not.toHaveBeenCalled()
 		expect(modelCache.removing).toEqual([])

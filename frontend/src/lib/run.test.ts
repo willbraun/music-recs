@@ -112,7 +112,9 @@ describe('startNewRun', () => {
 
 		expect(run.phase).toBe('error')
 		expect(run.error).toBe('Set your taste first')
-		expect(toastErrorMock).toHaveBeenCalledWith('Set your taste first')
+		expect(toastErrorMock).toHaveBeenCalledWith('Set your taste first', {
+			duration: Infinity,
+		})
 		expect(openRunEventsMock).not.toHaveBeenCalled()
 	})
 
@@ -205,7 +207,9 @@ describe('handleRunEvent', () => {
 
 		expect(run.phase).toBe('error')
 		expect(run.status).toBe('Model crashed')
-		expect(toastErrorMock).toHaveBeenCalledWith('Model crashed')
+		expect(toastErrorMock).toHaveBeenCalledWith('Model crashed', {
+			duration: Infinity,
+		})
 		expect(stream.close).toHaveBeenCalled()
 	})
 })

@@ -155,7 +155,9 @@ describe('player', () => {
 		FakePlayer.last.handlers.onError({ data: 100 })
 		await flush()
 
-		expect(toastErrorMock).toHaveBeenCalledWith("This video can't be played")
+		expect(toastErrorMock).toHaveBeenCalledWith("This video can't be played", {
+			duration: Infinity,
+		})
 		expect(player.current?.video_id).toBe('b')
 	})
 
