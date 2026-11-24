@@ -241,7 +241,7 @@ async function startTrack(index: number) {
 			error instanceof Error ? error.message : 'Could not play this song'
 		player.status = 'error'
 		player.error = message
-		toast.error(message)
+		toast.error(message, { duration: Infinity })
 	}
 }
 
@@ -292,9 +292,10 @@ function handleError(event: { data: number }) {
 				label: 'Open on YouTube',
 				onClick: () => void openExternalUrl(song.url),
 			},
+			duration: Infinity,
 		})
 	} else {
-		toast.error(message)
+		toast.error(message, { duration: Infinity })
 	}
 
 	if (hasNext) {

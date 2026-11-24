@@ -74,7 +74,8 @@ function applyList(list: ModelList) {
 		const before = modelCache.items.find((existing) => existing.id === item.id)
 		if (isDownloadActive(before) && item.download?.state === 'failed')
 			toast.error(
-				`${findModel(item.id).name}: ${item.download.error ?? 'Download failed'}`
+				`${findModel(item.id).name}: ${item.download.error ?? 'Download failed'}`,
+				{ duration: Infinity }
 			)
 	}
 	modelCache.items = list.items
@@ -103,7 +104,8 @@ export async function downloadModel(id: string) {
 		if (index !== -1) modelCache.items[index] = item
 	} catch (error) {
 		toast.error(
-			error instanceof Error ? error.message : 'Could not start the download'
+			error instanceof Error ? error.message : 'Could not start the download',
+			{ duration: Infinity }
 		)
 		void loadModelCache()
 	}
@@ -125,7 +127,8 @@ export async function removeModelFiles(id: string) {
 		toast.success(`Removed ${findModel(id).name}`)
 	} catch (error) {
 		toast.error(
-			error instanceof Error ? error.message : 'Could not remove the model'
+			error instanceof Error ? error.message : 'Could not remove the model',
+			{ duration: Infinity }
 		)
 	} finally {
 		modelCache.removing = modelCache.removing.filter((other) => other !== id)

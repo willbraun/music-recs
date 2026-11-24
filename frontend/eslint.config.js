@@ -41,6 +41,15 @@ export default tseslint.config(
 					],
 				},
 			],
+			'no-restricted-syntax': [
+				'error',
+				{
+					selector:
+						"CallExpression[callee.object.name='toast'][callee.property.name='error']:not(:has(ObjectExpression.arguments > Property[key.name='duration'][value.name='Infinity']))",
+					message:
+						'toast.error must set { duration: Infinity } so errors stay until dismissed.',
+				},
+			],
 		},
 	}
 )

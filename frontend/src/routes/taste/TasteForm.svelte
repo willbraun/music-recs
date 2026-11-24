@@ -61,7 +61,7 @@
 				error instanceof Error ? error.message : 'Could not save your taste'
 			if (error instanceof ApiError && error.status === 422)
 				errorMessage = message
-			else toast.error(message)
+			else toast.error(message, { duration: Infinity })
 		} finally {
 			isSaving = false
 		}

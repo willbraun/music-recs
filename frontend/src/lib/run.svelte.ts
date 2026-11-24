@@ -79,7 +79,7 @@ function failRun(message: string) {
 	run.phase = 'error'
 	run.status = message
 	run.error = message
-	toast.error(message)
+	toast.error(message, { duration: Infinity })
 }
 
 export function handleRunEvent(event: RunEvent) {
