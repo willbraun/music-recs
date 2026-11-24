@@ -35,7 +35,7 @@
 				continue
 			}
 			if (items.length >= MAX_ITEMS) {
-				message = `You can add at most ${MAX_ITEMS} names`
+				message = `Cannot add more than ${MAX_ITEMS} artists`
 				return
 			}
 			items = [...items, name]
