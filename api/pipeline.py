@@ -196,7 +196,7 @@ def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
                         analyzed += 1
 
                         # Looked up before analysis so the loading card shows the same art as the final card.
-                        artwork = find_artwork(song.video_id, song.artist, song.title)
+                        artwork = find_artwork(song.video_id, song.artist, song.title, song.album, song.lead_artist)
                         result = {
                             "video_id": song.video_id,
                             "title": song.title,
@@ -206,6 +206,7 @@ def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
                             "tier": tier,
                             "thumbnail_url": artwork.thumbnail_url,
                             "album_art_url": artwork.album_art_url,
+                            "album": artwork.album,
                         }
                         yield {"type": "analyzing", "index": analyzed, "recommended_count": recommended, **result}
 
@@ -236,7 +237,6 @@ def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
                             **result,
                             "recommended": verdict.recommended,
                             "confidence": verdict.confidence,
-                            "album": artwork.album,
                             "musicbrainz_recording_id": artwork.recording_id,
                             "musicbrainz_release_group_id": artwork.release_group_id,
                         }

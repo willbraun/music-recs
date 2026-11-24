@@ -4,11 +4,13 @@
 	let {
 		title,
 		artist,
+		album,
 		thumbnailUrl,
 		albumArtUrl,
 	}: {
 		title: string
 		artist: string
+		album?: string | null
 		thumbnailUrl?: string
 		albumArtUrl?: string | null
 	} = $props()
@@ -50,5 +52,8 @@
 	<div class="mt-2 min-w-0 opacity-60">
 		<p class="truncate text-sm font-medium" {title}>{title}</p>
 		<p class="truncate text-sm text-muted-foreground">{artist}</p>
+		{#if album}
+			<p class="truncate text-xs text-muted-foreground/70">{album}</p>
+		{/if}
 	</div>
 </article>

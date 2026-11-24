@@ -53,6 +53,8 @@ class Song:
     artist: str
     url: str
     clip_path: Path
+    album: str | None = None
+    lead_artist: str | None = None
 
 
 def _get_qualifiers(title: str) -> str:
@@ -158,7 +160,9 @@ def _download_song(video_id: str, workdir: Path) -> Song | None:
             # ffmpeg fails sporadically (HTTP errors on the stream URL); a fresh extraction usually fixes it.
             if attempt == DOWNLOAD_ATTEMPTS - 1:
                 raise FetchError(str(e)) from e
-    return Song(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav")
+    # yt-dlp joins `artists` with ", " into `artist`, so names containing commas survive only in the list.
+    lead_artist = (info.get("artists") or [info["artist"]])[0]
+    return Song(info["id"], info["track"], info["artist"], url, workdir / f"{info['id']}.wav", info.get("album") or None, lead_artist)
 
 
 def fetch_songs(

@@ -3,7 +3,7 @@ import logging
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from http.client import HTTPException
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
@@ -17,6 +17,7 @@ CONTACT = "will@racquetrivals.com"
 USER_AGENT = f"music-recs/{APP_VERSION} ({CONTACT})"
 
 MUSICBRAINZ_URL = "https://musicbrainz.org/ws/2/recording/"
+RELEASE_GROUP_URL = "https://musicbrainz.org/ws/2/release-group/"
 COVER_ART_URL = "https://coverartarchive.org/release-group/{}/front-500"
 THUMBNAIL_URL = "https://img.youtube.com/vi/{}/hqdefault.jpg"
 
@@ -73,6 +74,16 @@ def escape_query_value(value: str) -> str:
 
 def normalize_title(title: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", "", title.casefold()).split())
+
+
+def strip_album_edition(album: str) -> str:
+    """Drop editions like "(Deluxe)" and a trailing "EP" or "Single", which MusicBrainz release groups omit."""
+    base = re.sub(r"\s*[(\[][^)\]]*[)\]]", "", album)
+    return re.sub(r"\s+(ep|single)$", "", base, flags=re.IGNORECASE).strip() or album
+
+
+def get_album_key(album: str) -> str:
+    return normalize_title(strip_album_edition(album))
 
 
 def build_recording_query(artist: str, title: str) -> str:
@@ -136,25 +147,44 @@ def find_recording(artist: str, title: str) -> tuple[dict, dict] | None:
     return pick_match(_get_json(f"{MUSICBRAINZ_URL}?{params}").get("recordings") or [], title)
 
 
-def find_artwork(video_id: str, artist: str, title: str) -> SongArtwork:
+def pick_release_group(groups: list[dict], album: str) -> dict | None:
+    """Return the confident release group named `album` with the best rank, or None."""
+    wanted = get_album_key(album)
+    candidates = [g for g in groups if g.get("score", 0) >= MIN_SCORE and get_album_key(g.get("title", "")) == wanted]
+    return min(candidates, key=_rank_release_group, default=None)
+
+
+def find_release_group(artist: str, album: str) -> dict | None:
+    query = f'releasegroup:"{escape_query_value(strip_album_edition(album))}" AND artist:"{escape_query_value(artist)}"'
+    params = urlencode({"query": query, "fmt": "json", "limit": SEARCH_LIMIT}, quote_via=quote)
+    return pick_release_group(_get_json(f"{RELEASE_GROUP_URL}?{params}").get("release-groups") or [], album)
+
+
+def _add_cover_art(artwork: SongArtwork, release_group_id: str) -> SongArtwork:
+    art_url = get_cover_art_url(release_group_id)
+    return replace(artwork, album_art_url=art_url if _has_cover_art(art_url) else None, release_group_id=release_group_id)
+
+
+def find_artwork(
+    video_id: str, artist: str, title: str, album: str | None = None, lead_artist: str | None = None
+) -> SongArtwork:
     """Look up the album art for a song; any failure leaves only the YouTube thumbnail.
 
+    The album YouTube Music reports is trusted over a MusicBrainz guess; it only locates the cover art,
+    falling back to a recording search when MusicBrainz has no release group by that name.
     Done here, not in the browser, so one process enforces MusicBrainz's rate limit and results are stored once.
     """
-    thumbnail = SongArtwork(get_thumbnail_url(video_id))
+    thumbnail = SongArtwork(get_thumbnail_url(video_id), album=album)
     try:
+        if album:
+            group = find_release_group(lead_artist or artist, album)
+            if group is not None:
+                return _add_cover_art(thumbnail, group["id"])
         match = find_recording(artist, title)
         if match is None:
             return thumbnail
         recording, group = match
-        art_url = get_cover_art_url(group["id"])
-        return SongArtwork(
-            thumbnail_url=thumbnail.thumbnail_url,
-            album_art_url=art_url if _has_cover_art(art_url) else None,
-            album=group.get("title"),
-            recording_id=recording["id"],
-            release_group_id=group["id"],
-        )
+        return replace(_add_cover_art(thumbnail, group["id"]), album=album or group.get("title"), recording_id=recording["id"])
     except (OSError, ValueError, KeyError, HTTPException) as e:
         logger.warning("Artwork lookup failed for %s - %s: %s", artist, title, e)
         return thumbnail

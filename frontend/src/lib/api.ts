@@ -52,6 +52,7 @@ export type RunEvent =
 			tier: Tier
 			thumbnail_url?: string
 			album_art_url?: string | null
+			album?: string | null
 	  }
 	| ({ type: 'scored'; index: number; tier: Tier } & Song)
 	| { type: 'done'; analyzed: number; recommended: number; count: number }

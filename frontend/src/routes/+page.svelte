@@ -257,6 +257,7 @@
 							<LoadingSongCard
 								title={card.title}
 								artist={card.artist}
+								album={card.album}
 								thumbnailUrl={card.thumbnail_url}
 								albumArtUrl={card.album_art_url}
 							/>

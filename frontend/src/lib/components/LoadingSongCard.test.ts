@@ -28,6 +28,12 @@ describe('LoadingSongCard', () => {
 		expect(screen.getByText('Test Artist')).toBeInTheDocument()
 	})
 
+	it('shows the album when there is one', () => {
+		render(LoadingSongCard, { title: 'Test Song', artist: 'Test Artist', album: 'Test Album' })
+
+		expect(screen.getByText('Test Album')).toBeInTheDocument()
+	})
+
 	it('shows the thumbnail', () => {
 		const { container } = render(LoadingSongCard, {
 			title: 'T',

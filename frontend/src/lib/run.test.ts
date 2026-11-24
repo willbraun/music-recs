@@ -67,6 +67,7 @@ function makeAnalyzing(video_id: string): RunEvent {
 		url: `https://www.youtube.com/watch?v=${video_id}`,
 		query: null,
 		tier: 'familiar',
+		album: `Album ${video_id}`,
 	}
 }
 
@@ -152,7 +153,7 @@ describe('handleRunEvent', () => {
 
 		expect(run.status).toBe('Listening to Title a by Artist a...')
 		expect(run.cards).toHaveLength(1)
-		expect(run.cards[0]).toMatchObject({ kind: 'loading', video_id: 'a' })
+		expect(run.cards[0]).toMatchObject({ kind: 'loading', video_id: 'a', album: 'Album a' })
 	})
 
 	it('turns the loading card into a song and starts streaming on a recommended score', () => {

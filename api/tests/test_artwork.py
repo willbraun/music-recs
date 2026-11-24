@@ -89,6 +89,33 @@ def test_choose_release_group_prefers_album_then_ep_then_single(groups: list, ex
     assert artwork.choose_release_group(_recording(groups=groups))["id"] == expected
 
 
+def _release_group(id: str = "rg1", title: str = "Currents", score: int = 100, primary: str = "Album", secondary: list[str] | None = None) -> dict:
+    return {"id": id, "title": title, "score": score, "primary-type": primary, "secondary-types": secondary or []}
+
+
+@pytest.mark.parametrize(
+    ("youtube_album", "musicbrainz_title"),
+    [
+        ("Currents", "currents"),
+        ("Bangarang EP", "Bangarang"),
+        ("Drink the Sea (10 Year Anniversary Deluxe Edition)", "Drink the Sea"),
+    ],
+)
+def test_pick_release_group_matches_the_album_ignoring_editions(youtube_album: str, musicbrainz_title: str) -> None:
+    assert artwork.pick_release_group([_release_group(title=musicbrainz_title)], youtube_album) is not None
+
+
+def test_pick_release_group_requires_the_same_album_and_a_high_score() -> None:
+    assert artwork.pick_release_group([_release_group(title="Lonerism")], "Currents") is None
+    assert artwork.pick_release_group([_release_group(score=89)], "Currents") is None
+
+
+def test_pick_release_group_prefers_a_studio_group_over_an_earlier_live_one() -> None:
+    groups = [_release_group("live", secondary=["Live"]), _release_group("studio")]
+
+    assert artwork.pick_release_group(groups, "Currents")["id"] == "studio"
+
+
 class _Response(io.BytesIO):
     def __enter__(self) -> "_Response":
         return self
@@ -201,6 +228,77 @@ def test_find_artwork_treats_an_invalid_response_as_no_match(network, monkeypatc
     monkeypatch.setattr(artwork, "_get_json", lambda url: json.loads("{"))
 
     assert artwork.find_artwork("vid", "A", "T") == SongArtwork(THUMBNAIL)
+
+
+RELEASE_GROUP = artwork.RELEASE_GROUP_URL
+
+
+def _find_with_album() -> SongArtwork:
+    return artwork.find_artwork("vid", "Tame Impala, Someone", "Let It Happen", "Currents", "Tame Impala")
+
+
+def test_find_artwork_with_a_youtube_album_only_looks_up_its_cover(network) -> None:
+    calls, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": [_release_group()]}
+    routes[COVER] = {}
+
+    assert _find_with_album() == SongArtwork(THUMBNAIL, COVER, "Currents", None, "rg1")
+    assert [c[1].split("?")[0] for c in calls] == [RELEASE_GROUP, COVER]
+    assert 'artist%3A%22Tame%20Impala%22' in calls[0][1]
+
+
+def test_find_artwork_searches_the_album_by_a_lead_artist_containing_a_comma(network) -> None:
+    calls, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": [_release_group(title="IGOR")]}
+    routes[COVER] = {}
+
+    artwork.find_artwork("vid", "Tyler, The Creator, Kanye West", "EARFQUAKE", "IGOR", "Tyler, The Creator")
+
+    assert "artist%3A%22Tyler%2C%20The%20Creator%22" in calls[0][1]
+
+
+def test_find_artwork_with_a_youtube_album_searches_without_the_edition(network) -> None:
+    calls, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": [_release_group(title="Bangarang")]}
+    routes[COVER] = {}
+
+    result = artwork.find_artwork("vid", "Skrillex, Sirah", "Bangarang", "Bangarang (Deluxe) EP")
+
+    assert result.album == "Bangarang (Deluxe) EP"
+    assert "releasegroup%3A%22Bangarang%22" in calls[0][1]
+
+
+def test_find_artwork_without_a_release_group_falls_back_to_the_recording_and_keeps_the_youtube_album(network) -> None:
+    calls, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": [_release_group(title="Lonerism")]}
+    routes[MUSICBRAINZ] = {"recordings": [_recording(title="Let It Happen")]}
+    routes[COVER] = {}
+
+    assert _find_with_album() == SongArtwork(THUMBNAIL, COVER, "Currents", "rec1", "rg1")
+    assert [c[1].split("?")[0] for c in calls] == [RELEASE_GROUP, MUSICBRAINZ, COVER]
+
+
+def test_find_artwork_with_no_release_group_or_recording_keeps_the_youtube_album(network) -> None:
+    _, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": []}
+    routes[MUSICBRAINZ] = {"recordings": []}
+
+    assert _find_with_album() == SongArtwork(THUMBNAIL, album="Currents")
+
+
+def test_find_artwork_with_a_youtube_album_keeps_it_when_musicbrainz_fails(network) -> None:
+    _, routes = network
+    routes[RELEASE_GROUP] = HTTPError(RELEASE_GROUP, 503, "Busy", {}, None)
+
+    assert _find_with_album() == SongArtwork(THUMBNAIL, album="Currents")
+
+
+def test_find_artwork_with_a_youtube_album_keeps_it_when_the_cover_is_missing(network) -> None:
+    _, routes = network
+    routes[RELEASE_GROUP] = {"release-groups": [_release_group()]}
+    routes[COVER] = HTTPError(COVER, 404, "Not Found", {}, None)
+
+    assert _find_with_album() == SongArtwork(THUMBNAIL, None, "Currents", None, "rg1")
 
 
 def test_rate_limiter_waits_between_calls(monkeypatch: pytest.MonkeyPatch) -> None:

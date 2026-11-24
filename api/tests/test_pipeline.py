@@ -15,7 +15,7 @@ from taste_profile import TasteProfile
 def _song(video_id: str, tmp_path: Path, artist: str | None = None) -> Song:
     clip = tmp_path / f"{video_id}.wav"
     clip.touch()
-    return Song(video_id, f"Title {video_id}", artist or f"Artist {video_id}", f"https://example.com/{video_id}", clip)
+    return Song(video_id, f"Title {video_id}", artist or f"Artist {video_id}", f"https://example.com/{video_id}", clip, f"YouTube album {video_id}", f"Lead {video_id}")
 
 
 def test_find_songs_distributes_requests_across_queries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -296,6 +296,7 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         avoided_by_round=[],
         seen_artists_by_round=[],
         artwork_calls=[],
+        artwork_albums=[],
         required_models=[],
     )
 
@@ -322,8 +323,11 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         query = "generated" if len(state.generated) == 1 else f"generated{len(state.generated)}"
         return [SimpleNamespace(query=query, tier="adjacent")]
 
-    def fake_find_artwork(video_id: str, artist: str, title: str) -> SongArtwork:
+    def fake_find_artwork(
+        video_id: str, artist: str, title: str, album: str | None = None, lead_artist: str | None = None
+    ) -> SongArtwork:
         state.artwork_calls.append(video_id)
+        state.artwork_albums.append((album, lead_artist))
         return SongArtwork(
             f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", f"art-{video_id}", f"Album {video_id}", f"rec-{video_id}", f"rg-{video_id}"
         )
@@ -372,6 +376,7 @@ def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_p
     scored = [e for e in events if e["type"] == "scored"][0]
     assert analyzing["thumbnail_url"] == "https://img.youtube.com/vi/a/hqdefault.jpg"
     assert analyzing["album_art_url"] == "art-a"
+    assert analyzing["album"] == "Album a"
     assert (scored["thumbnail_url"], scored["album_art_url"], scored["album"]) == (
         "https://img.youtube.com/vi/a/hqdefault.jpg",
         "art-a",
@@ -394,6 +399,7 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
     scored = {e["video_id"]: e for e in pipeline.run(1, 50, appdb) if e["type"] == "scored"}
 
     assert stub_pipeline.artwork_calls == ["a", "b"]
+    assert stub_pipeline.artwork_albums == [("YouTube album a", "Lead a"), ("YouTube album b", "Lead b")]
     assert scored["a"]["album_art_url"] == "art-a"
     assert scored["a"]["album"] == "Album a"
     assert appdb.list_songs()[1]["album_art_url"] == "art-a"

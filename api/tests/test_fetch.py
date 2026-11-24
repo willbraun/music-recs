@@ -118,8 +118,21 @@ def test_download_song_returns_song_for_studio_track(monkeypatch: pytest.MonkeyP
 
     song = fetch._download_song("abc", tmp_path)
 
-    assert song == Song("abc", "Song", "Artist", "https://www.youtube.com/watch?v=abc", tmp_path / "abc.wav")
+    assert song == Song("abc", "Song", "Artist", "https://www.youtube.com/watch?v=abc", tmp_path / "abc.wav", "Album", "Artist")
     assert ydl.downloaded
+
+
+def test_download_song_takes_the_lead_artist_from_the_artist_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    info = _info(artist="Tyler, The Creator, Kanye West", artists=["Tyler, The Creator", "Kanye West"])
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: _FakeYoutubeDL({}, info))
+
+    assert fetch._download_song("abc", tmp_path).lead_artist == "Tyler, The Creator"
+
+
+def test_download_song_has_no_album_when_youtube_reports_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(fetch.yt_dlp, "YoutubeDL", lambda opts: _FakeYoutubeDL({}, _info(album="")))
+
+    assert fetch._download_song("abc", tmp_path).album is None
 
 
 def test_download_song_skips_non_studio_without_downloading(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
