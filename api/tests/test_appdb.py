@@ -24,7 +24,7 @@ def test_add_song_overwrites_existing_row(tmp_path: Path) -> None:
     db.add_song("abc", "New", "Artist", "u", False, 0.6, "q2")
 
     songs = db.list_songs()
-    assert [s["title"] for s in songs] == ["New"]
+    assert [song["title"] for song in songs] == ["New"]
     assert (songs[0]["recommended"], songs[0]["confidence"]) == (False, 0.6)
     assert db.get_seen_ids() == {"abc"}
 
@@ -58,7 +58,7 @@ def test_add_song_without_artwork_lists_nulls(tmp_path: Path) -> None:
 
     song = db.list_songs()[0]
 
-    assert [song[k] for k in ("album_art_url", "album", "musicbrainz_recording_id", "musicbrainz_release_group_id")] == [None] * 4
+    assert [song[column] for column in ("album_art_url", "album", "musicbrainz_recording_id", "musicbrainz_release_group_id")] == [None] * 4
 
 
 def test_confidence_must_be_between_half_and_one(tmp_path: Path) -> None:

@@ -32,7 +32,7 @@ def test_find_songs_distributes_requests_across_queries(monkeypatch: pytest.Monk
     first_batch = [next(songs) for _ in range(5)]
 
     assert requested == [("a", 3), ("b", 2)]
-    assert [(s.video_id, q, t) for s, q, t in first_batch] == [
+    assert [(song.video_id, query, tier) for song, query, tier in first_batch] == [
         ("a0", "a", "familiar"),
         ("a1", "a", "familiar"),
         ("a2", "a", "familiar"),
@@ -61,7 +61,7 @@ def test_find_songs_skips_artists_seen_in_an_earlier_round(monkeypatch: pytest.M
 
     found = list(pipeline._find_songs([("a", None)], 2, set(), tmp_path, seen_artists=seen_artists))
 
-    assert [s.video_id for s, _, _ in found] == ["b"]
+    assert [song.video_id for song, _, _ in found] == ["b"]
     assert seen_artists == {"flume", "muse"}
 
 
@@ -76,7 +76,7 @@ def test_find_songs_skips_repeat_artists_and_deletes_their_clips(monkeypatch: py
 
     found = list(pipeline._find_songs([("a", None)], 3, set(), tmp_path))
 
-    assert [s.video_id for s, _, _ in found] == ["a", "c"]
+    assert [song.video_id for song, _, _ in found] == ["a", "c"]
     assert not fetched[1].clip_path.exists()
     assert not fetched[3].clip_path.exists()
 
@@ -88,7 +88,7 @@ def test_find_songs_defers_avoided_artists_to_the_end(monkeypatch: pytest.Monkey
 
     found = list(pipeline._find_songs([("a", None)], 1, set(), tmp_path, {"flume"}))
 
-    assert [s.video_id for s, _, _ in found] == ["b", "a"]
+    assert [song.video_id for song, _, _ in found] == ["b", "a"]
     assert fetched[0].clip_path.exists()
 
 
@@ -99,7 +99,7 @@ def test_find_songs_holds_avoided_artists_until_every_pass_is_done(monkeypatch: 
 
     found = list(pipeline._find_songs([("q", None)], 1, set(), tmp_path, {"flume"}))
 
-    assert [s.video_id for s, _, _ in found] == ["b", "a"]
+    assert [song.video_id for song, _, _ in found] == ["b", "a"]
 
 
 def test_find_songs_never_yields_blocked_artists_and_deletes_their_clips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -114,7 +114,7 @@ def test_find_songs_never_yields_blocked_artists_and_deletes_their_clips(monkeyp
 
     found = list(pipeline._find_songs([("a", None)], 4, skip_ids, tmp_path, blocked_artists={"flume", "tyler, the creator"}))
 
-    assert [s.video_id for s, _, _ in found] == ["d"]
+    assert [song.video_id for song, _, _ in found] == ["d"]
     assert not any(song.clip_path.exists() for song in fetched[:3])
     assert {"a", "b", "c"} <= skip_ids
 
@@ -193,7 +193,7 @@ def test_download_missing_models_checks_all_first_then_downloads_in_order(monkey
         "type": "downloading_models",
         "models": [{"model": "org/a", "total_bytes": 10}, {"model": "org/b", "total_bytes": 20}],
     }
-    assert [(e["type"], e["model"]) for e in events if e["type"] != "download_progress" and e["type"] != "downloading_models"] == [
+    assert [(event["type"], event["model"]) for event in events if event["type"] != "download_progress" and event["type"] != "downloading_models"] == [
         ("downloading_model", "org/a"),
         ("model_downloaded", "org/a"),
         ("downloading_model", "org/b"),
@@ -265,7 +265,7 @@ def test_download_missing_models_records_a_failure_for_every_model_when_sizes_ar
     with pytest.raises(OSError):
         list(pipeline.download_missing_models(["org/a", "org/b"]))
 
-    assert [(get_download(m) or {}).get("state") for m in ("org/a", "org/b")] == ["failed", "failed"]
+    assert [(get_download(model_id) or {}).get("state") for model_id in ("org/a", "org/b")] == ["failed", "failed"]
 
 
 def test_download_missing_models_clears_a_pending_entry_for_an_already_cached_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -315,8 +315,8 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         state.analyzed.append((clip_path.stem, taste, exploration))
         return state.verdicts.get(clip_path.stem, Verdict(True, 0.9))
 
-    def fake_generate(taste: str, liked_artists: list[str], exploration: int, n: int, avoid_artists: list[str]):
-        state.generated.append((taste, liked_artists, exploration, n))
+    def fake_generate(taste: str, liked_artists: list[str], exploration: int, count: int, avoid_artists: list[str]):
+        state.generated.append((taste, liked_artists, exploration, count))
         state.avoided = avoid_artists
         state.avoided_by_round.append(list(avoid_artists))
         # Later rounds get distinct queries, as the real generator avoids the ones already used.
@@ -347,19 +347,19 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 def test_run_stops_once_count_is_recommended(appdb: AppDb, stub_pipeline) -> None:
     events = list(pipeline.run(2, 40, appdb))
 
-    assert [e["type"] for e in events] == ["started", "queries", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
+    assert [event["type"] for event in events] == ["started", "queries", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
     assert events[0] == {"type": "started", "count": 2, "exploration": 40}
     assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 2, "count": 2}
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert stub_pipeline.fetch_args[1] == 2 * pipeline.CANDIDATES_PER_RECOMMENDATION
-    assert [s["video_id"] for s in appdb.list_songs()] == ["b", "a"]
+    assert [song["video_id"] for song in appdb.list_songs()] == ["b", "a"]
 
 
 def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a"]
 
-    scored = [e for e in pipeline.run(1, 50, appdb) if e["type"] == "scored"][0]
+    scored = [event for event in pipeline.run(1, 50, appdb) if event["type"] == "scored"][0]
 
     assert scored["recommended"] is False
     assert scored["confidence"] == 0.7
@@ -372,8 +372,8 @@ def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_p
 
     events = list(pipeline.run(1, 50, appdb))
 
-    analyzing = [e for e in events if e["type"] == "analyzing"][0]
-    scored = [e for e in events if e["type"] == "scored"][0]
+    analyzing = [event for event in events if event["type"] == "analyzing"][0]
+    scored = [event for event in events if event["type"] == "scored"][0]
     assert analyzing["thumbnail_url"] == "https://img.youtube.com/vi/a/hqdefault.jpg"
     assert analyzing["album_art_url"] == "art-a"
     assert analyzing["album"] == "Album a"
@@ -396,7 +396,7 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    scored = {e["video_id"]: e for e in pipeline.run(1, 50, appdb) if e["type"] == "scored"}
+    scored = {event["video_id"]: event for event in pipeline.run(1, 50, appdb) if event["type"] == "scored"}
 
     assert stub_pipeline.artwork_calls == ["a", "b"]
     assert stub_pipeline.artwork_albums == [("YouTube album a", "Lead a"), ("YouTube album b", "Lead b")]
@@ -408,9 +408,9 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
 def test_run_reports_running_recommended_count(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
 
-    analyzing = [e for e in pipeline.run(2, 50, appdb) if e["type"] == "analyzing"]
+    analyzing = [event for event in pipeline.run(2, 50, appdb) if event["type"] == "analyzing"]
 
-    assert [(e["index"], e["recommended_count"]) for e in analyzing] == [(1, 0), (2, 0), (3, 1)]
+    assert [(event["index"], event["recommended_count"]) for event in analyzing] == [(1, 0), (2, 0), (3, 1)]
 
 
 def test_run_stores_not_recommended_songs(appdb: AppDb, stub_pipeline) -> None:
@@ -419,7 +419,7 @@ def test_run_stores_not_recommended_songs(appdb: AppDb, stub_pipeline) -> None:
 
     list(pipeline.run(1, 50, appdb))
 
-    stored = {s["video_id"]: (s["recommended"], s["confidence"]) for s in appdb.list_songs()}
+    stored = {song["video_id"]: (song["recommended"], song["confidence"]) for song in appdb.list_songs()}
     assert stored == {"a": (False, 0.7), "b": (True, 0.9)}
 
 
@@ -440,14 +440,14 @@ def test_run_passes_seen_ids_to_the_search(appdb: AppDb, stub_pipeline) -> None:
 def test_run_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
     events = list(pipeline.run(1, 80, appdb))
 
-    queries_event = next(e for e in events if e["type"] == "queries")
+    queries_event = next(event for event in events if event["type"] == "queries")
     assert queries_event["queries"] == [{"query": "generated", "tier": "adjacent"}]
     taste_text = "I like these genres: Rock. My favorite artists are Flume."
     assert stub_pipeline.generated == [
         (taste_text, ["Flume"], 80, 1 * pipeline.CANDIDATES_PER_RECOMMENDATION)
     ]
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
-    assert next(e for e in events if e["type"] == "scored")["tier"] == "adjacent"
+    assert next(event for event in events if event["type"] == "scored")["tier"] == "adjacent"
 
 
 def test_run_requires_both_models(appdb: AppDb, stub_pipeline) -> None:
@@ -461,7 +461,7 @@ def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monk
         pipeline, "download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
     )
 
-    types = [e["type"] for e in pipeline.run(1, 50, appdb)]
+    types = [event["type"] for event in pipeline.run(1, 50, appdb)]
 
     assert types[:4] == ["started", "downloading_models", "queries", "fetching"]
 
@@ -492,10 +492,10 @@ def test_run_generates_new_queries_when_a_round_falls_short(appdb: AppDb, stub_p
 
     events = list(pipeline.run(1, 50, appdb))
 
-    assert [e["type"] for e in events] == [
+    assert [event["type"] for event in events] == [
         "started", "queries", "fetching", "analyzing", "scored", "queries", "fetching", "analyzing", "scored", "done",
     ]
-    queries = [e["queries"][0]["query"] for e in events if e["type"] == "queries"]
+    queries = [event["queries"][0]["query"] for event in events if event["type"] == "queries"]
     assert queries == ["generated", "generated2"]
     assert stub_pipeline.avoided == ["generated"]
     assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 1, "count": 1}
@@ -505,7 +505,7 @@ def test_run_stops_when_a_round_brings_no_new_queries(appdb: AppDb, stub_pipelin
     stub_pipeline.found = []
     monkeypatch.setattr("queries.generate_queries", lambda *args: [SimpleNamespace(query="Same", tier="familiar")])
 
-    types = [e["type"] for e in pipeline.run(1, 50, appdb)]
+    types = [event["type"] for event in pipeline.run(1, 50, appdb)]
 
     assert types == ["started", "queries", "fetching", "done"]
 
@@ -517,7 +517,7 @@ def test_run_shares_seen_artists_across_rounds(appdb: AppDb, stub_pipeline) -> N
 
     sets = stub_pipeline.seen_artists_by_round
     assert len(sets) == pipeline.MAX_ROUNDS
-    assert all(s is sets[0] for s in sets)
+    assert all(seen_artists is sets[0] for seen_artists in sets)
 
 
 def test_run_avoids_frequent_artists_and_earlier_queries_in_later_rounds(appdb: AppDb, stub_pipeline) -> None:

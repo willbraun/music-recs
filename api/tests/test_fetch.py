@@ -214,7 +214,7 @@ def test_download_song_does_not_retry_when_sign_in_is_required(monkeypatch: pyte
 
 
 def _stub_fetching(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ids: list[str], rejected: set[str] = frozenset()) -> None:
-    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": i} for i in ids])
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": video_id} for video_id in ids])
     monkeypatch.setattr(
         fetch,
         "_download_song",
@@ -227,7 +227,7 @@ def test_fetch_songs_yields_up_to_count_in_search_order(monkeypatch: pytest.Monk
 
     songs = list(fetch_songs("q", 2, set(), tmp_path))
 
-    assert [s.video_id for s in songs] == ["a", "b"]
+    assert [song.video_id for song in songs] == ["a", "b"]
 
 
 def test_fetch_songs_skips_known_and_rejected_ids(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -236,7 +236,7 @@ def test_fetch_songs_skips_known_and_rejected_ids(monkeypatch: pytest.MonkeyPatc
 
     songs = list(fetch_songs("q", 3, skip_ids, tmp_path))
 
-    assert [s.video_id for s in songs] == ["b", "d"]
+    assert [song.video_id for song in songs] == ["b", "d"]
     # Every considered id is recorded so later searches don't repeat it.
     assert {"a", "b", "c", "d"} <= skip_ids
 
@@ -246,7 +246,7 @@ def test_fetch_songs_downloads_a_repeated_id_once(monkeypatch: pytest.MonkeyPatc
 
     songs = list(fetch_songs("q", 3, set(), tmp_path))
 
-    assert [s.video_id for s in songs] == ["a", "b"]
+    assert [song.video_id for song in songs] == ["a", "b"]
 
 
 def test_fetch_songs_returns_nothing_when_no_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -261,14 +261,14 @@ def _stub_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ids: list[st
             raise fetch.FetchError("boom")
         return Song(video_id, "t", "a", "u", tmp_path / video_id)
 
-    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": i} for i in ids])
+    monkeypatch.setattr(fetch, "_search", lambda query, limit: [{"id": video_id} for video_id in ids])
     monkeypatch.setattr(fetch, "_download_song", download)
 
 
 def test_fetch_songs_skips_an_isolated_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _stub_download(monkeypatch, tmp_path, ["a", "b", "c"], failed={"a"})
 
-    assert [s.video_id for s in fetch_songs("q", 2, set(), tmp_path)] == ["b", "c"]
+    assert [song.video_id for song in fetch_songs("q", 2, set(), tmp_path)] == ["b", "c"]
 
 
 def test_fetch_songs_raises_after_consecutive_failures(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

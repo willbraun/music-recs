@@ -163,8 +163,8 @@ def test_find_artwork_returns_album_art_and_ids(network) -> None:
     result = _find()
 
     assert result == SongArtwork(THUMBNAIL, COVER, "Title rg1", "rec1", "rg1")
-    assert [c[0] for c in calls] == ["GET", "HEAD"]
-    assert all(c[2] == artwork.USER_AGENT and c[3] == artwork.REQUEST_TIMEOUT for c in calls)
+    assert [call[0] for call in calls] == ["GET", "HEAD"]
+    assert all(call[2] == artwork.USER_AGENT and call[3] == artwork.REQUEST_TIMEOUT for call in calls)
     assert "limit=25" in calls[0][1] and "fmt=json" in calls[0][1]
 
 
@@ -205,7 +205,7 @@ def test_find_artwork_retries_a_musicbrainz_503(network) -> None:
     routes[COVER] = {}
 
     assert _find().album == "Title rg1"
-    assert [c[0] for c in calls] == ["GET", "GET", "HEAD"]
+    assert [call[0] for call in calls] == ["GET", "GET", "HEAD"]
 
 
 def test_find_artwork_gives_up_after_repeated_503s(network) -> None:
@@ -243,7 +243,7 @@ def test_find_artwork_with_a_youtube_album_only_looks_up_its_cover(network) -> N
     routes[COVER] = {}
 
     assert _find_with_album() == SongArtwork(THUMBNAIL, COVER, "Currents", None, "rg1")
-    assert [c[1].split("?")[0] for c in calls] == [RELEASE_GROUP, COVER]
+    assert [call[1].split("?")[0] for call in calls] == [RELEASE_GROUP, COVER]
     assert 'artist%3A%22Tame%20Impala%22' in calls[0][1]
 
 
@@ -275,7 +275,7 @@ def test_find_artwork_without_a_release_group_falls_back_to_the_recording_and_ke
     routes[COVER] = {}
 
     assert _find_with_album() == SongArtwork(THUMBNAIL, COVER, "Currents", "rec1", "rg1")
-    assert [c[1].split("?")[0] for c in calls] == [RELEASE_GROUP, MUSICBRAINZ, COVER]
+    assert [call[1].split("?")[0] for call in calls] == [RELEASE_GROUP, MUSICBRAINZ, COVER]
 
 
 def test_find_artwork_with_no_release_group_or_recording_keeps_the_youtube_album(network) -> None:
@@ -305,7 +305,7 @@ def test_rate_limiter_waits_between_calls(monkeypatch: pytest.MonkeyPatch) -> No
     now = [100.0]
     sleeps: list[float] = []
     monkeypatch.setattr(artwork.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(artwork.time, "sleep", lambda s: (sleeps.append(s), now.__setitem__(0, now[0] + s)))
+    monkeypatch.setattr(artwork.time, "sleep", lambda seconds: (sleeps.append(seconds), now.__setitem__(0, now[0] + seconds)))
     limiter = artwork._RateLimiter(1.0)
 
     limiter.wait()

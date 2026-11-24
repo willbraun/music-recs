@@ -202,9 +202,9 @@ def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
     appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q")
     appdb.add_song("no", "No", "A", "u", False, 0.6, "q")
 
-    songs = {s["video_id"]: s for s in client.get("/api/songs").json()["items"]}
+    songs = {song["video_id"]: song for song in client.get("/api/songs").json()["items"]}
 
-    assert {k: v["recommended"] for k, v in songs.items()} == {"yes": True, "no": False}
+    assert {video_id: song["recommended"] for video_id, song in songs.items()} == {"yes": True, "no": False}
     assert songs["yes"]["confidence"] == 0.9
     assert "description" not in songs["yes"]
     assert songs["yes"]["title"] == "Yes"
@@ -224,7 +224,7 @@ def test_list_songs_paginates_by_fifty_newest_first(client: TestClient) -> None:
     beyond = client.get("/api/songs", params={"page": 4}).json()
 
     assert (first["total"], len(first["items"]), first["items"][0]["video_id"]) == (120, 50, "v119")
-    assert (last["page"], [s["video_id"] for s in last["items"]][:1], len(last["items"])) == (3, ["v19"], 20)
+    assert (last["page"], [song["video_id"] for song in last["items"]][:1], len(last["items"])) == (3, ["v19"], 20)
     assert beyond["items"] == []
 
 

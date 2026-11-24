@@ -99,6 +99,8 @@ If the code, its comments, and the request conflict or are ambiguous, identify t
 - Handle asynchronous operations and errors deliberately.
 - Avoid duplicated logic and deeply coupled components.
 - Use descriptive names for variables, functions, components, and files.
+- Never use single-letter names (`e`, `s`, `n`, `r`), including in comprehensions, lambdas, loops, and tests; write `event`, `song`, `count`, `row`. `i` is allowed for a simple loop counter, and `_` for an unused value.
+- Name SQL tables and columns descriptively, including in tests (`artists`, `albums`, `songs`, not `a`, `b`, `t`).
 - Keep secrets, credentials, and machine-specific configuration out of source control.
 - Follow existing formatting, linting, and naming conventions.
 

@@ -173,7 +173,7 @@ def test_download_model_restarts_a_stalled_attempt_without_failing(monkeypatch: 
     events = list(download_model("org/model", 1000))
 
     assert attempts.value == 2
-    assert [e["downloaded_bytes"] for e in events] == sorted(e["downloaded_bytes"] for e in events)
+    assert [event["downloaded_bytes"] for event in events] == sorted(event["downloaded_bytes"] for event in events)
     assert events[-1]["downloaded_bytes"] == 1000
 
 
@@ -262,7 +262,7 @@ def _cache(*repos: SimpleNamespace) -> SimpleNamespace:
 
 def _repo(repo_id: str, size: int, *hashes: str, repo_type: str = "model") -> SimpleNamespace:
     return SimpleNamespace(
-        repo_id=repo_id, repo_type=repo_type, size_on_disk=size, revisions=[SimpleNamespace(commit_hash=h) for h in hashes]
+        repo_id=repo_id, repo_type=repo_type, size_on_disk=size, revisions=[SimpleNamespace(commit_hash=revision_hash) for revision_hash in hashes]
     )
 
 
