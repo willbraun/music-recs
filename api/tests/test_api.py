@@ -12,11 +12,13 @@ from model_download import begin_download, fail_download
 from pydantic import ValidationError
 from taste_profile import TasteProfile
 
+PROFILE_ID = 1
+
 import api
 
 
 def test_run_request_defaults_and_strips_query() -> None:
-    assert api.RunRequest().model_dump() == {"count": 3, "exploration": 50}
+    assert api.RunRequest().model_dump() == {"count": 4, "exploration": 50}
 
 
 @pytest.mark.parametrize(
@@ -84,32 +86,32 @@ def _wait_until_finished(job: api.Job) -> None:
 def test_process_jobs_publishes_run_events_then_finishes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[tuple] = []
 
-    def fake_run(count, exploration, appdb):
-        calls.append((count, exploration))
+    def fake_run(profile_id, count, exploration, appdb):
+        calls.append((profile_id, count, exploration))
         yield {"type": "started"}
         yield {"type": "done"}
 
     monkeypatch.setattr(api, "run", fake_run)
     jobs: queue.Queue[api.Job] = queue.Queue()
-    job = api.Job(api.RunRequest(count=2, exploration=10))
+    job = api.Job(api.RunRequest(count=2, exploration=10), PROFILE_ID)
     jobs.put(job)
 
     _run_worker(jobs, AppDb(tmp_path / "app.db"))
     _wait_until_finished(job)
 
-    assert calls == [(2, 10)]
+    assert calls == [(PROFILE_ID, 2, 10)]
     assert job.events == [{"type": "started"}, {"type": "done"}]
 
 
 def test_process_jobs_reports_errors_and_keeps_serving(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    def fake_run(count, exploration, appdb):
+    def fake_run(profile_id, count, exploration, appdb):
         if count == 1:
             raise RuntimeError("model failed")
         yield {"type": "done"}
 
     monkeypatch.setattr(api, "run", fake_run)
     jobs: queue.Queue[api.Job] = queue.Queue()
-    bad, good = api.Job(api.RunRequest(count=1)), api.Job(api.RunRequest(count=2))
+    bad, good = api.Job(api.RunRequest(count=1), PROFILE_ID), api.Job(api.RunRequest(count=2), PROFILE_ID)
     jobs.put(bad)
     jobs.put(good)
 
@@ -121,13 +123,43 @@ def test_process_jobs_reports_errors_and_keeps_serving(monkeypatch: pytest.Monke
     assert good.events == [{"type": "done"}]
 
 
+def test_process_jobs_stops_a_cancelled_run_and_keeps_serving(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    job = api.Job(api.RunRequest(), PROFILE_ID)
+    closed: list[bool] = []
+
+    def fake_run(profile_id, count, exploration, appdb):
+        try:
+            yield {"type": "started"}
+            job.cancelled = True
+            yield {"type": "analyzing"}
+            yield {"type": "never"}
+        finally:
+            closed.append(True)
+
+    monkeypatch.setattr(api, "run", fake_run)
+    jobs: queue.Queue[api.Job] = queue.Queue()
+    queued = api.Job(api.RunRequest(), PROFILE_ID)
+    queued.cancelled = True
+    jobs.put(job)
+    jobs.put(queued)
+
+    _run_worker(jobs, AppDb(tmp_path / "app.db"))
+    _wait_until_finished(job)
+    _wait_until_finished(queued)
+
+    assert job.events == [{"type": "started"}, {"type": "analyzing"}, {"type": "cancelled"}]
+    assert closed == [True]
+    assert queued.events == [{"type": "cancelled"}]
+
+
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
     # Not used as a context manager, so the real lifespan (and app.db) never starts.
     api.app.state.appdb = AppDb(tmp_path / "app.db")
+    api.app.state.appdb.add_profile("Ann", "🎸")
     api.app.state.jobs = {}
     api.app.state.queue = queue.Queue()
-    return TestClient(api.app, base_url="http://localhost")
+    return TestClient(api.app, base_url="http://localhost", headers={"X-Profile-Id": str(PROFILE_ID)})
 
 
 @pytest.mark.parametrize("host", ["evil.example", "evil.example:8000", "localhost.evil.example"])
@@ -145,8 +177,63 @@ def test_accepts_same_origin_request(client: TestClient) -> None:
     assert response.status_code != 403
 
 
+def test_profile_scoped_endpoints_require_a_known_profile(client: TestClient) -> None:
+    assert client.get("/api/songs", headers={"X-Profile-Id": "99"}).status_code == 404
+    assert client.get("/api/taste", headers={"X-Profile-Id": "99"}).status_code == 404
+    client.headers.pop("X-Profile-Id")
+    assert client.get("/api/songs").status_code == 400
+    assert client.get("/api/models").status_code == 200
+
+
+def test_songs_and_taste_belong_to_the_requesting_profile(client: TestClient) -> None:
+    other = client.post("/api/profiles", json={"name": "Bob", "avatar": "🎹"}).json()["id"]
+    api.app.state.appdb.add_song(PROFILE_ID, "abc", "T", "A", "u", True, 0.9, "q")
+    client.put("/api/taste", json={"profile": {"liked_genres": ["Rock"]}})
+
+    headers = {"X-Profile-Id": str(other)}
+    assert client.get("/api/songs", headers=headers).json()["total"] == 0
+    assert client.get("/api/taste", headers=headers).json() is None
+    assert client.get("/api/songs").json()["total"] == 1
+
+
+def test_profiles_can_be_created_edited_listed_and_deleted(client: TestClient) -> None:
+    created = client.post("/api/profiles", json={"name": "  Bob  ", "avatar": "🎹"})
+    assert created.status_code == 201
+    assert created.json()["name"] == "Bob"
+    profile_id = created.json()["id"]
+
+    assert client.put(f"/api/profiles/{profile_id}", json={"name": "Bobby", "avatar": "👨‍🎤"}).json()["name"] == "Bobby"
+    assert client.get(f"/api/profiles/{profile_id}").json()["avatar"] == "👨‍🎤"
+    assert [profile["name"] for profile in client.get("/api/profiles").json()["items"]] == ["Ann", "Bobby"]
+    assert client.delete(f"/api/profiles/{profile_id}").status_code == 204
+    assert client.get(f"/api/profiles/{profile_id}").status_code == 404
+    assert client.delete(f"/api/profiles/{profile_id}").status_code == 404
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"name": "", "avatar": "🎸"},
+        {"name": "   ", "avatar": "🎸"},
+        {"name": "x" * 31, "avatar": "🎸"},
+        {"name": "Bob", "avatar": ""},
+        {"name": "Bob", "avatar": "A"},
+        {"name": "Bob", "avatar": "7"},
+        {"name": "Bob", "avatar": "🎸 "},
+    ],
+)
+def test_profiles_reject_invalid_input(client: TestClient, body: dict) -> None:
+    assert client.post("/api/profiles", json=body).status_code == 422
+
+
+def test_delete_profile_is_blocked_while_its_run_is_unfinished(client: TestClient) -> None:
+    api.app.state.jobs["run"] = api.Job(api.RunRequest(), PROFILE_ID)
+
+    assert client.delete(f"/api/profiles/{PROFILE_ID}").status_code == 409
+
+
 def test_start_run_queues_a_job_and_returns_its_id(client: TestClient) -> None:
-    api.app.state.appdb.save_taste(TasteProfile(liked_genres=["Rock"]))
+    api.app.state.appdb.save_taste(PROFILE_ID, TasteProfile(liked_genres=["Rock"]))
     response = client.post("/api/runs", json={"count": 2})
 
     assert response.status_code == 202
@@ -193,14 +280,26 @@ def test_get_run_events_resumes_after_last_event_id(client: TestClient) -> None:
     assert response.text == 'id: 1\ndata: {"type": "done"}\n\n'
 
 
+def test_cancel_run_flags_only_the_owners_run(client: TestClient) -> None:
+    other = client.post("/api/profiles", json={"name": "Bob", "avatar": "🎹"}).json()["id"]
+    job = api.Job(api.RunRequest(), PROFILE_ID)
+    api.app.state.jobs["run"] = job
+
+    assert client.delete("/api/runs/run", headers={"X-Profile-Id": str(other)}).status_code == 404
+    assert not job.cancelled
+    assert client.delete("/api/runs/run").status_code == 204
+    assert job.cancelled
+    assert client.delete("/api/runs/missing").status_code == 404
+
+
 def test_get_run_events_unknown_run_is_404(client: TestClient) -> None:
     assert client.get("/api/runs/missing/events").status_code == 404
 
 
 def test_list_songs_flags_recommended_songs(client: TestClient) -> None:
     appdb: AppDb = api.app.state.appdb
-    appdb.add_song("yes", "Yes", "A", "u", True, 0.9, "q")
-    appdb.add_song("no", "No", "A", "u", False, 0.6, "q")
+    appdb.add_song(PROFILE_ID, "yes", "Yes", "A", "u", True, 0.9, "q")
+    appdb.add_song(PROFILE_ID, "no", "No", "A", "u", False, 0.6, "q")
 
     songs = {song["video_id"]: song for song in client.get("/api/songs").json()["items"]}
 
@@ -217,7 +316,7 @@ def test_list_songs_is_empty_for_a_new_database(client: TestClient) -> None:
 def test_list_songs_paginates_by_fifty_newest_first(client: TestClient) -> None:
     appdb: AppDb = api.app.state.appdb
     for i in range(120):
-        appdb.add_song(f"v{i}", "T", "A", "u", True, 0.9, "q")
+        appdb.add_song(PROFILE_ID, f"v{i}", "T", "A", "u", True, 0.9, "q")
 
     first = client.get("/api/songs").json()
     last = client.get("/api/songs", params={"page": 3}).json()

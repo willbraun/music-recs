@@ -11,6 +11,8 @@ from huggingface_hub.errors import LocalEntryNotFoundError
 from model_download import begin_download, get_download
 from taste_profile import TasteProfile
 
+PROFILE_ID = 1
+
 
 def _song(video_id: str, tmp_path: Path, artist: str | None = None) -> Song:
     clip = tmp_path / f"{video_id}.wav"
@@ -279,7 +281,7 @@ def test_download_missing_models_clears_a_pending_entry_for_an_already_cached_mo
 @pytest.fixture
 def appdb(tmp_path: Path) -> AppDb:
     db = AppDb(tmp_path / "app.db")
-    db.save_taste(TasteProfile(liked_genres=["Rock"], liked_artists=["Flume"]))
+    db.save_taste(PROFILE_ID, TasteProfile(liked_genres=["Rock"], liked_artists=["Flume"]))
     return db
 
 
@@ -345,21 +347,21 @@ def stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 def test_run_stops_once_count_is_recommended(appdb: AppDb, stub_pipeline) -> None:
-    events = list(pipeline.run(2, 40, appdb))
+    events = list(pipeline.run(PROFILE_ID, 2, 40, appdb))
 
     assert [event["type"] for event in events] == ["started", "queries", "fetching", "analyzing", "scored", "analyzing", "scored", "done"]
     assert events[0] == {"type": "started", "count": 2, "exploration": 40}
     assert events[-1] == {"type": "done", "analyzed": 2, "recommended": 2, "count": 2}
     assert stub_pipeline.fetch_args[0] == [("generated", "adjacent")]
     assert stub_pipeline.fetch_args[1] == 2 * pipeline.CANDIDATES_PER_RECOMMENDATION
-    assert [song["video_id"] for song in appdb.list_songs()] == ["b", "a"]
+    assert [song["video_id"] for song in appdb.list_songs(PROFILE_ID)] == ["b", "a"]
 
 
 def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a"]
 
-    scored = [event for event in pipeline.run(1, 50, appdb) if event["type"] == "scored"][0]
+    scored = [event for event in pipeline.run(PROFILE_ID, 1, 50, appdb) if event["type"] == "scored"][0]
 
     assert scored["recommended"] is False
     assert scored["confidence"] == 0.7
@@ -370,7 +372,7 @@ def test_run_scored_event_includes_verdict_and_confidence(appdb: AppDb, stub_pip
 def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.found = ["a"]
 
-    events = list(pipeline.run(1, 50, appdb))
+    events = list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     analyzing = [event for event in events if event["type"] == "analyzing"][0]
     scored = [event for event in events if event["type"] == "scored"][0]
@@ -383,7 +385,7 @@ def test_run_stores_artwork_and_reports_it_on_scored_events(appdb: AppDb, stub_p
         "Album a",
     )
     assert (scored["musicbrainz_recording_id"], scored["musicbrainz_release_group_id"]) == ("rec-a", "rg-a")
-    stored = appdb.list_songs()[0]
+    stored = appdb.list_songs(PROFILE_ID)[0]
     assert (stored["thumbnail_url"], stored["album_art_url"], stored["album"]) == (
         scored["thumbnail_url"],
         "art-a",
@@ -396,19 +398,19 @@ def test_run_looks_up_artwork_for_every_song(appdb: AppDb, stub_pipeline) -> Non
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    scored = {event["video_id"]: event for event in pipeline.run(1, 50, appdb) if event["type"] == "scored"}
+    scored = {event["video_id"]: event for event in pipeline.run(PROFILE_ID, 1, 50, appdb) if event["type"] == "scored"}
 
     assert stub_pipeline.artwork_calls == ["a", "b"]
     assert stub_pipeline.artwork_albums == [("YouTube album a", "Lead a"), ("YouTube album b", "Lead b")]
     assert scored["a"]["album_art_url"] == "art-a"
     assert scored["a"]["album"] == "Album a"
-    assert appdb.list_songs()[1]["album_art_url"] == "art-a"
+    assert appdb.list_songs(PROFILE_ID)[1]["album_art_url"] == "art-a"
 
 
 def test_run_reports_running_recommended_count(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
 
-    analyzing = [event for event in pipeline.run(2, 50, appdb) if event["type"] == "analyzing"]
+    analyzing = [event for event in pipeline.run(PROFILE_ID, 2, 50, appdb) if event["type"] == "analyzing"]
 
     assert [(event["index"], event["recommended_count"]) for event in analyzing] == [(1, 0), (2, 0), (3, 1)]
 
@@ -417,28 +419,28 @@ def test_run_stores_not_recommended_songs(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
     stub_pipeline.found = ["a", "b"]
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
-    stored = {song["video_id"]: (song["recommended"], song["confidence"]) for song in appdb.list_songs()}
+    stored = {song["video_id"]: (song["recommended"], song["confidence"]) for song in appdb.list_songs(PROFILE_ID)}
     assert stored == {"a": (False, 0.7), "b": (True, 0.9)}
 
 
 def test_run_deletes_clips_after_analysis(appdb: AppDb, stub_pipeline, tmp_path: Path) -> None:
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert not (tmp_path / "a.wav").exists()
 
 
 def test_run_passes_seen_ids_to_the_search(appdb: AppDb, stub_pipeline) -> None:
-    appdb.add_song("seen", "t", "a", "u", True, 0.9, "q")
+    appdb.add_song(PROFILE_ID, "seen", "t", "a", "u", True, 0.9, "q")
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert stub_pipeline.fetch_args[2] == {"seen"}
 
 
 def test_run_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
-    events = list(pipeline.run(1, 80, appdb))
+    events = list(pipeline.run(PROFILE_ID, 1, 80, appdb))
 
     queries_event = next(event for event in events if event["type"] == "queries")
     assert queries_event["queries"] == [{"query": "generated", "tier": "adjacent"}]
@@ -451,7 +453,7 @@ def test_run_generates_tiered_queries(appdb: AppDb, stub_pipeline) -> None:
 
 
 def test_run_requires_both_models(appdb: AppDb, stub_pipeline) -> None:
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert stub_pipeline.required_models == ["Qwen/Qwen3-8B-MLX-4bit", "FractalSurfer/MOSS-Music-8B-Instruct-mlx-5bit"]
 
@@ -461,26 +463,26 @@ def test_run_downloads_models_before_searching(appdb: AppDb, stub_pipeline, monk
         pipeline, "download_missing_models", lambda model_ids: iter([{"type": "downloading_models", "models": []}])
     )
 
-    types = [event["type"] for event in pipeline.run(1, 50, appdb)]
+    types = [event["type"] for event in pipeline.run(PROFILE_ID, 1, 50, appdb)]
 
     assert types[:4] == ["started", "downloading_models", "queries", "fetching"]
 
 
 def test_run_passes_exploration_to_the_analyzer(appdb: AppDb, stub_pipeline) -> None:
-    list(pipeline.run(1, 77, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 77, appdb))
 
     assert stub_pipeline.analyzed[0] == ("a", "I like these genres: Rock. My favorite artists are Flume.", 77)
 
 
 def test_run_without_a_saved_taste_raises(tmp_path: Path, stub_pipeline) -> None:
     with pytest.raises(RuntimeError, match="Set your taste first"):
-        list(pipeline.run(1, 50, AppDb(tmp_path / "empty.db")))
+        list(pipeline.run(PROFILE_ID, 1, 50, AppDb(tmp_path / "empty.db")))
 
 
 def test_run_finishes_with_no_songs_found(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.found = []
 
-    events = list(pipeline.run(3, 50, appdb))
+    events = list(pipeline.run(PROFILE_ID, 3, 50, appdb))
 
     assert events[-1] == {"type": "done", "analyzed": 0, "recommended": 0, "count": 3}
     assert len(stub_pipeline.generated) == pipeline.MAX_ROUNDS
@@ -490,7 +492,7 @@ def test_run_generates_new_queries_when_a_round_falls_short(appdb: AppDb, stub_p
     stub_pipeline.found_by_round = [["a"], ["b"]]
     stub_pipeline.verdicts["a"] = Verdict(False, 0.7)
 
-    events = list(pipeline.run(1, 50, appdb))
+    events = list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert [event["type"] for event in events] == [
         "started", "queries", "fetching", "analyzing", "scored", "queries", "fetching", "analyzing", "scored", "done",
@@ -505,7 +507,7 @@ def test_run_stops_when_a_round_brings_no_new_queries(appdb: AppDb, stub_pipelin
     stub_pipeline.found = []
     monkeypatch.setattr("queries.generate_queries", lambda *args: [SimpleNamespace(query="Same", tier="familiar")])
 
-    types = [event["type"] for event in pipeline.run(1, 50, appdb)]
+    types = [event["type"] for event in pipeline.run(PROFILE_ID, 1, 50, appdb)]
 
     assert types == ["started", "queries", "fetching", "done"]
 
@@ -513,7 +515,7 @@ def test_run_stops_when_a_round_brings_no_new_queries(appdb: AppDb, stub_pipelin
 def test_run_shares_seen_artists_across_rounds(appdb: AppDb, stub_pipeline) -> None:
     stub_pipeline.found = []
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     sets = stub_pipeline.seen_artists_by_round
     assert len(sets) == pipeline.MAX_ROUNDS
@@ -522,10 +524,10 @@ def test_run_shares_seen_artists_across_rounds(appdb: AppDb, stub_pipeline) -> N
 
 def test_run_avoids_frequent_artists_and_earlier_queries_in_later_rounds(appdb: AppDb, stub_pipeline) -> None:
     for i in range(pipeline.FREQUENT_ARTIST_RECOMMENDATIONS):
-        appdb.add_song(f"f{i}", "t", "Flume", "u", True, 0.9, "q")
+        appdb.add_song(PROFILE_ID, f"f{i}", "t", "Flume", "u", True, 0.9, "q")
     stub_pipeline.found = []
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert stub_pipeline.avoided_by_round == [
         ["Flume"],
@@ -536,18 +538,18 @@ def test_run_avoids_frequent_artists_and_earlier_queries_in_later_rounds(appdb: 
 
 def test_run_avoids_artists_recommended_often(appdb: AppDb, stub_pipeline) -> None:
     for i in range(pipeline.FREQUENT_ARTIST_RECOMMENDATIONS):
-        appdb.add_song(f"f{i}", "t", "Flume", "u", True, 0.9, "q")
-    appdb.add_song("m", "t", "Muse", "u", True, 0.9, "q")
+        appdb.add_song(PROFILE_ID, f"f{i}", "t", "Flume", "u", True, 0.9, "q")
+    appdb.add_song(PROFILE_ID, "m", "t", "Muse", "u", True, 0.9, "q")
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert stub_pipeline.avoided == ["Flume"]
     assert stub_pipeline.avoid_artists == {"flume"}
 
 
 def test_run_blocks_disliked_artists(appdb: AppDb, stub_pipeline) -> None:
-    appdb.save_taste(TasteProfile(liked_genres=["Rock"], disliked_artists=["Muse", " Radiohead "]))
+    appdb.save_taste(PROFILE_ID, TasteProfile(liked_genres=["Rock"], disliked_artists=["Muse", " Radiohead "]))
 
-    list(pipeline.run(1, 50, appdb))
+    list(pipeline.run(PROFILE_ID, 1, 50, appdb))
 
     assert stub_pipeline.blocked_artists == {"muse", "radiohead"}

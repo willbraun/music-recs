@@ -13,7 +13,7 @@ describe('discover settings', () => {
 	it('uses the defaults when nothing is saved', async () => {
 		const { discoverSettings } = await loadModule()
 
-		expect(discoverSettings).toEqual({ count: 3, exploration: 50 })
+		expect(discoverSettings).toEqual({ count: 4, exploration: 50 })
 	})
 
 	it('restores saved settings after a restart', async () => {
@@ -36,6 +36,6 @@ describe('discover settings', () => {
 		localStorage.setItem('music-recs:discover-exploration', '250')
 		const { discoverSettings } = await loadModule()
 
-		expect(discoverSettings).toEqual({ count: 3, exploration: 100 })
+		expect(discoverSettings).toEqual({ count: 4, exploration: 100 })
 	})
 })

@@ -5,6 +5,8 @@ import pytest
 from appdb import AppDb
 from migrate import MIGRATIONS_DIR, apply_migrations
 
+PROFILE_ID = 1
+
 
 def _query(path: Path, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
     conn = sqlite3.connect(path)
@@ -19,10 +21,10 @@ def test_fresh_database_is_migrated_with_no_taste(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     AppDb(path)
 
-    assert [row[0] for row in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000, 20261020120000]
+    assert [row[0] for row in _query(path, "SELECT version FROM schema_migrations")] == [20261010120000, 20261020120000, 20261128120000]
     tables = {row["name"] for row in _query(path, "SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert {"songs", "taste", "schema_migrations"} <= tables
-    assert AppDb(path).get_current_taste() is None
+    assert {"songs", "taste", "profiles", "schema_migrations"} <= tables
+    assert AppDb(path).get_current_taste(PROFILE_ID) is None
 
 
 def test_artwork_migration_fills_thumbnails_for_existing_rows(tmp_path: Path) -> None:
@@ -36,7 +38,7 @@ def test_artwork_migration_fills_thumbnails_for_existing_rows(tmp_path: Path) ->
     conn.commit()
     conn.close()
 
-    songs = AppDb(path).list_songs()
+    songs = AppDb(path).list_songs(0)
 
     assert songs[0]["thumbnail_url"] == "https://img.youtube.com/vi/abc/hqdefault.jpg"
     assert songs[0]["album_art_url"] is None
@@ -45,11 +47,11 @@ def test_artwork_migration_fills_thumbnails_for_existing_rows(tmp_path: Path) ->
 def test_reopening_is_a_no_op(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     db = AppDb(path)
-    db.add_song("abc", "Title", "Artist", "u", True, 0.9, "q")
+    db.add_song(PROFILE_ID, "abc", "Title", "Artist", "u", True, 0.9, "q")
 
     AppDb(path)
 
-    assert db.get_seen_ids() == {"abc"}
+    assert db.get_seen_ids(PROFILE_ID) == {"abc"}
 
 
 def test_new_migration_applies_to_existing_database_and_keeps_data(tmp_path: Path) -> None:
@@ -216,6 +218,28 @@ def test_several_pending_migrations_apply_in_timestamp_order(tmp_path: Path) -> 
     assert "songs_year" in indexes
 
 
+def test_first_profile_adopts_songs_and_taste_from_before_profiles(tmp_path: Path) -> None:
+    path = tmp_path / "x.db"
+    conn = sqlite3.connect(path)
+    conn.executescript((MIGRATIONS_DIR / "20261010120000_initial.sql").read_text())
+    conn.execute("INSERT INTO songs (video_id, title, artist, url, verdict, confidence) VALUES ('abc', 't', 'a', 'u', 1, 0.9)")
+    conn.execute("INSERT INTO taste (id, profile) VALUES (1, '{\"liked_genres\": [\"rock\"]}')")
+    conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
+    conn.execute("INSERT INTO schema_migrations VALUES (20261010120000)")
+    conn.commit()
+    conn.close()
+
+    db = AppDb(path)
+    assert db.list_profiles() == []
+    profile = db.add_profile("Ann", "🎸")
+    later = db.add_profile("Bob", "🎹")
+
+    assert [song["video_id"] for song in db.list_songs(profile["id"])] == ["abc"]
+    assert db.get_current_taste(profile["id"]).profile.liked_genres == ["rock"]
+    assert db.list_songs(later["id"]) == []
+    assert db.get_current_taste(later["id"]) is None
+
+
 def test_taste_survives_upgrading_from_the_initial_version(tmp_path: Path) -> None:
     path = tmp_path / "x.db"
     conn = sqlite3.connect(path)
@@ -228,8 +252,8 @@ def test_taste_survives_upgrading_from_the_initial_version(tmp_path: Path) -> No
 
     AppDb(path)
 
-    rows = _query(path, "SELECT id, profile FROM taste")
-    assert [(row["id"], row["profile"]) for row in rows] == [(1, '{"liked_genres": ["rock"]}')]
+    rows = _query(path, "SELECT profile_id, profile FROM taste")
+    assert [(row["profile_id"], row["profile"]) for row in rows] == [(0, '{"liked_genres": ["rock"]}')]
 
 
 def test_migrating_enables_wal_journal_mode(tmp_path: Path) -> None:

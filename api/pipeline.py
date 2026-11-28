@@ -130,8 +130,8 @@ def download_missing_models(model_ids: list[str]) -> Iterator[dict]:
             finish_download(model_id)
 
 
-def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
-    """Find and analyze new songs until `count` are recommended, yielding a progress event dict per step.
+def run(profile_id: int, count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
+    """Find and analyze new songs for a profile until `count` are recommended, yielding a progress event dict per step.
 
     Search queries are generated from the taste at the given `exploration` level (0-100). A round that falls short
     of `count` is followed by a round of new queries, up to MAX_ROUNDS.
@@ -143,13 +143,13 @@ def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
     from queries import generate_queries
 
     # 1. Load the current taste and the ids that must not be recommended again.
-    saved_taste = appdb.get_current_taste()
+    saved_taste = appdb.get_current_taste(profile_id)
     if saved_taste is None:
         raise RuntimeError(NO_TASTE_MESSAGE)
     taste = saved_taste.text
-    skip_ids = appdb.get_seen_ids()
+    skip_ids = appdb.get_seen_ids(profile_id)
     # Artists recommended often already are avoided so the results stay varied.
-    artist_counts = appdb.get_recommended_artist_counts(FREQUENT_ARTIST_WINDOW)
+    artist_counts = appdb.get_recommended_artist_counts(profile_id, FREQUENT_ARTIST_WINDOW)
     frequent_artists = [artist for artist, n in artist_counts.items() if n >= FREQUENT_ARTIST_RECOMMENDATIONS]
     yield {"type": "started", "count": count, "exploration": exploration}
 
@@ -216,6 +216,7 @@ def run(count: int, exploration: int, appdb: AppDb) -> Iterator[dict]:
 
                         # 6. Cache the song so later runs skip it, then report.
                         appdb.add_song(
+                            profile_id,
                             song.video_id,
                             song.title,
                             song.artist,

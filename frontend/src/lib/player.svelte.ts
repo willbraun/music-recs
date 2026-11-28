@@ -324,6 +324,22 @@ export function appendToQueue(songs: Song[], origin?: string) {
 	}
 }
 
+// Ends playback and clears the queue, e.g. when another profile takes over.
+export function stopPlayer() {
+	loadToken++
+	stopPolling()
+	instance?.pauseVideo()
+	player.current = null
+	player.queue = []
+	player.index = -1
+	player.queueOrigin = null
+	player.status = 'idle'
+	player.position = 0
+	player.duration = 0
+	player.expanded = false
+	player.error = null
+}
+
 export function togglePlayback() {
 	if (!player.current) return
 	if (player.status === 'playing') instance?.pauseVideo()

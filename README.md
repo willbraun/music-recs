@@ -35,14 +35,15 @@ You can start the download from the **Models** page, or from the taste modal the
 
 ## How to use Music Recs
 
-1. **Download the models** from the **Models** page or from the taste modal that appears on first launch. This can take a while.
-2. **Enter your taste.** On first launch, the taste modal asks what music you like. Add genres and artists you like and don't like, and any other notes. You can change it later on the **Taste** page. You may enter your taste while the models download in the background.
-3. **Find new music.** On the **Discover** page, choose how many songs to find (1 to 50) and set the exploration level, then press **Find new music**.
+1. **Create a profile.** On first launch, pick an emoji and a name. Each profile has its own taste and recommendations, so several people can share the app. Switch profiles from the menu at the right of the header. Songs and taste from before profiles existed go to the first profile you create.
+2. **Download the models** from the **Models** page or from the taste modal that appears on first launch. This can take a while.
+3. **Enter your taste.** On first launch, the taste modal asks what music you like. Add genres and artists you like and don't like, and any other notes. You can change it later on the **Taste** page. You may enter your taste while the models download in the background.
+4. **Find new music.** On the **Discover** page, choose how many songs to find (1 to 50) and set the exploration level, then press **Find new music**.
    - **Familiar** stays close to your taste. **Adventurous** looks for genres and artists adjacent to your taste that you may still like.
    - The app generates search queries from your taste, searches YouTube Music, takes a short clip from each candidate song, and uses the audio model to decide whether you would like it.
-4. **Listen.** Recommended songs appear on the page. Play them one at a time, or use **Play All**.
-5. **Open songs in your music service.** Each song has links to open it in YouTube, Apple Music, or Spotify. The Apple Music and Spotify links open a web search for the song, so you can find and save it in those services.
-6. **Come back later.** The **Songs** page lists the songs you've been recommended before. Run **Find new music** again whenever you want a fresh batch.
+5. **Listen.** Recommended songs appear on the page. Play them one at a time, or use **Play All**.
+6. **Open songs in your music service.** Each song has links to open it in YouTube, Apple Music, or Spotify. The Apple Music and Spotify links open a web search for the song, so you can find and save it in those services.
+7. **Come back later.** The **Songs** page lists the songs you've been recommended before. Run **Find new music** again whenever you want a fresh batch.
 
 Your taste and the song recommendations are stored locally on your computer. Short audio clips are downloaded temporarily for analysis and then deleted. Songs are streamed through YouTube, so no music is saved on your computer.
 

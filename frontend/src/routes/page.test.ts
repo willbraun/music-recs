@@ -145,16 +145,16 @@ describe('discover page', () => {
 		).toBeInTheDocument()
 	})
 
-	it('defaults the song count to 3 and starts a run with it', async () => {
+	it('defaults the song count to 4 and starts a run with it', async () => {
 		render(Page)
 		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
 		expect(screen.getByText('Songs:')).toBeInTheDocument()
-		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('3')
+		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('4')
 		await userEvent.click(
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(3, 50)
+		expect(startNewRunMock).toHaveBeenCalledWith(4, 50)
 	})
 
 	it('starts a run with the chosen exploration', async () => {
@@ -173,7 +173,7 @@ describe('discover page', () => {
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(3, 51)
+		expect(startNewRunMock).toHaveBeenCalledWith(4, 51)
 	})
 
 	it('hides the stepper until settings is opened', () => {
@@ -188,12 +188,12 @@ describe('discover page', () => {
 		await userEvent.click(screen.getByLabelText('More songs'))
 		await userEvent.click(screen.getByLabelText('More songs'))
 		await userEvent.click(screen.getByLabelText('Fewer songs'))
-		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('4')
+		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('5')
 		await userEvent.click(
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(4, 50)
+		expect(startNewRunMock).toHaveBeenCalledWith(5, 50)
 	})
 
 	it('keeps the settings after leaving and returning to the page', async () => {
@@ -208,7 +208,7 @@ describe('discover page', () => {
 		render(Page)
 		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
 
-		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('4')
+		expect(screen.getByLabelText('Songs to find')).toHaveTextContent('5')
 		expect(screen.getByLabelText('Exploration level')).toHaveTextContent('51%')
 	})
 
@@ -216,6 +216,7 @@ describe('discover page', () => {
 		render(Page)
 		await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
 		const fewer = screen.getByLabelText('Fewer songs')
+		await userEvent.click(fewer)
 		await userEvent.click(fewer)
 		await userEvent.click(fewer)
 
@@ -592,7 +593,7 @@ describe('first-run taste flow', () => {
 			screen.getByRole('button', { name: 'Find new music' })
 		)
 
-		expect(startNewRunMock).toHaveBeenCalledWith(3, 50)
+		expect(startNewRunMock).toHaveBeenCalledWith(4, 50)
 		expect(
 			screen.queryByText('Your taste is saved. Models are still downloading...')
 		).not.toBeInTheDocument()

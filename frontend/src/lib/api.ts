@@ -56,6 +56,7 @@ export type RunEvent =
 	  }
 	| ({ type: 'scored'; index: number; tier: Tier } & Song)
 	| { type: 'done'; analyzed: number; recommended: number; count: number }
+	| { type: 'cancelled' }
 	| { type: 'error'; message: string }
 
 export class ApiError extends Error {
@@ -79,11 +80,42 @@ async function readErrorMessage(response: Response): Promise<string> {
 	return `Request failed (${response.status})`
 }
 
+export interface Profile {
+	id: number
+	name: string
+	// A single emoji.
+	avatar: string
+}
+
+export type ProfileInput = Omit<Profile, 'id'>
+
+// Songs, taste and runs act for this profile; the API reads it from the X-Profile-Id header.
+let activeProfileId: number | null = null
+
+export function setApiProfileId(id: number | null) {
+	activeProfileId = id
+}
+
+export function getApiProfileId(): number | null {
+	return activeProfileId
+}
+
+function fetchForProfile(
+	input: string,
+	init?: RequestInit,
+	profileId: number | null = activeProfileId
+): Promise<Response> {
+	if (profileId === null) return fetch(input, init)
+	const headers = new Headers(init?.headers)
+	headers.set('X-Profile-Id', String(profileId))
+	return fetch(input, { ...init, headers })
+}
+
 export async function startRun(
 	count: number,
 	exploration: number
 ): Promise<{ id: string }> {
-	const response = await fetch('/api/runs', {
+	const response = await fetchForProfile('/api/runs', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ count, exploration }),
@@ -101,7 +133,7 @@ export interface SongPage {
 }
 
 export async function listSongs(page = 1): Promise<SongPage> {
-	const response = await fetch(`/api/songs?page=${page}`)
+	const response = await fetchForProfile(`/api/songs?page=${page}`)
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
 	return response.json()
@@ -122,14 +154,14 @@ export interface Taste {
 }
 
 export async function getTaste(): Promise<Taste | null> {
-	const response = await fetch('/api/taste')
+	const response = await fetchForProfile('/api/taste')
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
 	return response.json()
 }
 
 export async function saveTaste(profile: TasteProfile): Promise<Taste> {
-	const response = await fetch('/api/taste', {
+	const response = await fetchForProfile('/api/taste', {
 		method: 'PUT',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ profile }),
@@ -137,6 +169,19 @@ export async function saveTaste(profile: TasteProfile): Promise<Taste> {
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
 	return response.json()
+}
+
+export async function cancelRun(
+	id: string,
+	profileId: number | null = activeProfileId
+): Promise<void> {
+	const response = await fetchForProfile(
+		`/api/runs/${encodeURIComponent(id)}`,
+		{ method: 'DELETE' },
+		profileId
+	)
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
 }
 
 export function openRunEvents(id: string): EventSource {
@@ -186,6 +231,51 @@ export async function startModelDownload(id: string): Promise<ModelStatus> {
 
 export async function removeModel(id: string): Promise<void> {
 	const response = await fetch(getModelPath(id), { method: 'DELETE' })
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+}
+
+export async function listProfiles(): Promise<Profile[]> {
+	const response = await fetch('/api/profiles')
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return (await response.json()).items
+}
+
+export async function getProfile(id: number): Promise<Profile> {
+	const response = await fetch(`/api/profiles/${id}`)
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+export async function createProfile(input: ProfileInput): Promise<Profile> {
+	const response = await fetch('/api/profiles', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input),
+	})
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+export async function updateProfile(
+	id: number,
+	input: ProfileInput
+): Promise<Profile> {
+	const response = await fetch(`/api/profiles/${id}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input),
+	})
+	if (!response.ok)
+		throw new ApiError(await readErrorMessage(response), response.status)
+	return response.json()
+}
+
+export async function deleteProfile(id: number): Promise<void> {
+	const response = await fetch(`/api/profiles/${id}`, { method: 'DELETE' })
 	if (!response.ok)
 		throw new ApiError(await readErrorMessage(response), response.status)
 }

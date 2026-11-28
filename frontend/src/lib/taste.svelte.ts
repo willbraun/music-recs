@@ -15,14 +15,20 @@ export const taste: TasteState = $state({
 	error: null,
 })
 
+// Ignores a response that a newer load or a profile switch has outdated.
+let loadGeneration = 0
+
 export async function loadTaste() {
+	const generation = ++loadGeneration
 	taste.status = 'loading'
 	taste.error = null
 	try {
 		const result = await getTaste()
+		if (generation !== loadGeneration) return
 		taste.current = result
 		taste.status = result ? 'ready' : 'none'
 	} catch (error) {
+		if (generation !== loadGeneration) return
 		taste.error =
 			error instanceof Error ? error.message : 'Could not load your taste'
 		taste.status = 'error'

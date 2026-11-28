@@ -1,5 +1,7 @@
 import {
 	ApiError,
+	cancelRun,
+	getApiProfileId,
 	openRunEvents,
 	startRun,
 	type RunEvent,
@@ -54,6 +56,8 @@ export const run: RunState = $state(createInitialState())
 
 let source: EventSource | null = null
 let receivedEvent = false
+// Bumped by resetRun so a start request that resolves after a reset is cancelled instead of adopted.
+let runGeneration = 0
 
 function saveRunId(id: string) {
 	sessionStorage.setItem(RUN_ID_KEY, id)
@@ -69,10 +73,27 @@ export function closeRunStream() {
 }
 
 export function resetRun() {
+	runGeneration++
 	closeRunStream()
 	clearRunId()
 	receivedEvent = false
 	Object.assign(run, createInitialState())
+}
+
+export function isRunActive(): boolean {
+	return run.phase === 'preparing' || run.phase === 'streaming'
+}
+
+// Songs already analyzed stay saved; the server stops after the step in progress.
+export async function cancelCurrentRun() {
+	const id = sessionStorage.getItem(RUN_ID_KEY)
+	resetRun()
+	if (!id) return
+	try {
+		await cancelRun(id)
+	} catch {
+		// An unknown run has already ended, which is all the caller needs.
+	}
 }
 
 function failRun(message: string) {
@@ -133,6 +154,9 @@ export function handleRunEvent(event: RunEvent) {
 			run.count = event.count
 			run.status = `Done`
 			break
+		case 'cancelled':
+			resetRun()
+			break
 		case 'error':
 			failRun(event.message)
 			break
@@ -162,17 +186,24 @@ function listenToRun(id: string, isResume: boolean) {
 }
 
 export async function startNewRun(count: number, exploration: number) {
-	if (run.phase === 'preparing' || run.phase === 'streaming') return
+	if (isRunActive()) return
 	closeRunStream()
 	Object.assign(run, createInitialState(), {
 		phase: 'preparing',
 		status: 'Waiting for the model...',
 	})
+	const generation = runGeneration
+	const profileId = getApiProfileId()
 	try {
 		const { id } = await startRun(count, exploration)
+		if (generation !== runGeneration) {
+			await cancelRun(id, profileId).catch(() => {})
+			return
+		}
 		saveRunId(id)
 		listenToRun(id, false)
 	} catch (error) {
+		if (generation !== runGeneration) return
 		// No taste is saved, so the taste gate sends the user to /taste without a toast.
 		if (error instanceof ApiError && error.status === 409) {
 			resetRun()

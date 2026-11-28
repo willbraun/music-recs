@@ -1,15 +1,19 @@
 import type { RunEvent, Song } from '#lib/api.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startRunMock, openRunEventsMock, toastErrorMock } = vi.hoisted(() => ({
-	startRunMock: vi.fn(),
-	openRunEventsMock: vi.fn(),
-	toastErrorMock: vi.fn(),
-}))
+const { startRunMock, cancelRunMock, openRunEventsMock, toastErrorMock } =
+	vi.hoisted(() => ({
+		cancelRunMock: vi.fn(),
+		startRunMock: vi.fn(),
+		openRunEventsMock: vi.fn(),
+		toastErrorMock: vi.fn(),
+	}))
 
 vi.mock('#lib/api.js', async (importOriginal) => ({
 	ApiError: (await importOriginal<typeof import('#lib/api.js')>()).ApiError,
 	startRun: startRunMock,
+	cancelRun: cancelRunMock,
+	getApiProfileId: () => 7,
 	openRunEvents: openRunEventsMock,
 }))
 vi.mock('svelte-sonner', () => ({ toast: { error: toastErrorMock } }))
@@ -17,7 +21,9 @@ vi.mock('svelte-sonner', () => ({ toast: { error: toastErrorMock } }))
 import { ApiError } from '#lib/api.js'
 import { taste } from '#lib/taste.svelte.js'
 import {
+	cancelCurrentRun,
 	handleRunEvent,
+	isRunActive,
 	resetRun,
 	resumeRun,
 	run,
@@ -153,7 +159,11 @@ describe('handleRunEvent', () => {
 
 		expect(run.status).toBe('Listening to Title a by Artist a...')
 		expect(run.cards).toHaveLength(1)
-		expect(run.cards[0]).toMatchObject({ kind: 'loading', video_id: 'a', album: 'Album a' })
+		expect(run.cards[0]).toMatchObject({
+			kind: 'loading',
+			video_id: 'a',
+			album: 'Album a',
+		})
 	})
 
 	it('turns the loading card into a song and starts streaming on a recommended score', () => {
@@ -275,6 +285,52 @@ describe('resumeRun', () => {
 
 		expect(run.phase).toBe('idle')
 		expect(sessionStorage.getItem('music-recs:run-id')).toBeNull()
+		expect(toastErrorMock).not.toHaveBeenCalled()
+	})
+})
+
+describe('cancelCurrentRun', () => {
+	it('stops the run on the server and clears it here', async () => {
+		cancelRunMock.mockResolvedValue(undefined)
+		await startNewRun(3, 50)
+		expect(isRunActive()).toBe(true)
+
+		await cancelCurrentRun()
+
+		expect(cancelRunMock).toHaveBeenCalledWith('run-1')
+		expect(isRunActive()).toBe(false)
+		expect(run.phase).toBe('idle')
+		expect(sessionStorage.getItem('music-recs:run-id')).toBeNull()
+		expect(stream.close).toHaveBeenCalled()
+	})
+
+	it('still clears the run when the server no longer knows it', async () => {
+		cancelRunMock.mockRejectedValue(new ApiError('Unknown run', 404))
+		await startNewRun(3, 50)
+
+		await cancelCurrentRun()
+
+		expect(run.phase).toBe('idle')
+	})
+
+	it('cancels a run whose start resolves after the run was reset', async () => {
+		cancelRunMock.mockResolvedValue(undefined)
+		const pending = startNewRun(3, 50)
+		await cancelCurrentRun()
+		await pending
+
+		expect(cancelRunMock).toHaveBeenLastCalledWith('run-1', 7)
+		expect(openRunEventsMock).not.toHaveBeenCalled()
+		expect(run.phase).toBe('idle')
+		expect(sessionStorage.getItem('music-recs:run-id')).toBeNull()
+	})
+
+	it('goes idle when another tab cancels the run', async () => {
+		await startNewRun(3, 50)
+
+		handleRunEvent({ type: 'cancelled' })
+
+		expect(run.phase).toBe('idle')
 		expect(toastErrorMock).not.toHaveBeenCalled()
 	})
 })

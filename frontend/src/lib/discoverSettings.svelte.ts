@@ -1,6 +1,6 @@
 export const MIN_COUNT = 1
 export const MAX_COUNT = 50
-export const DEFAULT_COUNT = 3
+export const DEFAULT_COUNT = 4
 export const DEFAULT_EXPLORATION = 50
 
 const COUNT_KEY = 'music-recs:discover-count'
