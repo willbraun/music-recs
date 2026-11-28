@@ -29,7 +29,11 @@ describe('LoadingSongCard', () => {
 	})
 
 	it('shows the album when there is one', () => {
-		render(LoadingSongCard, { title: 'Test Song', artist: 'Test Artist', album: 'Test Album' })
+		render(LoadingSongCard, {
+			title: 'Test Song',
+			artist: 'Test Artist',
+			album: 'Test Album',
+		})
 
 		expect(screen.getByText('Test Album')).toBeInTheDocument()
 	})

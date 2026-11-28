@@ -56,7 +56,9 @@ describe('ModelCard', () => {
 		renderCard(makeStatus())
 
 		expect(
-			screen.getByRole('heading', { name: 'MOSS Music 8B Instruct (MLX 5-bit)' })
+			screen.getByRole('heading', {
+				name: 'MOSS Music 8B Instruct (MLX 5-bit)',
+			})
 		).toBeInTheDocument()
 		expect(screen.getByText(info.purpose)).toBeInTheDocument()
 		expect(screen.getByText('16.5 GB')).toBeInTheDocument()
@@ -90,7 +92,9 @@ describe('ModelCard', () => {
 				screen.queryByRole('button', { name: /Remove/ })
 			).not.toBeInTheDocument()
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Download MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			)
 			expect(onDownload).toHaveBeenCalledOnce()
 		})
@@ -153,7 +157,9 @@ describe('ModelCard', () => {
 			expect(screen.getByText('Download failed')).toBeInTheDocument()
 			expect(screen.getByRole('alert')).toHaveTextContent('network down')
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Retry MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Retry MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			)
 			expect(onDownload).toHaveBeenCalledOnce()
 		})
@@ -168,14 +174,18 @@ describe('ModelCard', () => {
 				screen.queryByRole('button', { name: /Download|Retry/ })
 			).not.toBeInTheDocument()
 			expect(
-				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			).toBeEnabled()
 		})
 
 		it('removes only after confirming', async () => {
 			renderCard(makeStatus({ downloaded: true }))
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			)
 
 			const dialog = await screen.findByRole('dialog', {
@@ -195,7 +205,9 @@ describe('ModelCard', () => {
 		it('keeps the model when the confirmation is cancelled', async () => {
 			renderCard(makeStatus({ downloaded: true }))
 			await userEvent.click(
-				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			)
 
 			await userEvent.click(
@@ -212,7 +224,9 @@ describe('ModelCard', () => {
 			renderCard(makeStatus({ downloaded: true }), { isBusy: true })
 
 			expect(
-				screen.getByRole('button', { name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)' })
+				screen.getByRole('button', {
+					name: 'Remove MOSS Music 8B Instruct (MLX 5-bit)',
+				})
 			).toBeDisabled()
 			expect(
 				screen.getByText('Available once the current run finishes.')

@@ -120,7 +120,9 @@ describe('models page', () => {
 		render(Page)
 
 		await userEvent.click(
-			screen.getByRole('button', { name: 'Download MOSS Music 8B Instruct (MLX 5-bit)' })
+			screen.getByRole('button', {
+				name: 'Download MOSS Music 8B Instruct (MLX 5-bit)',
+			})
 		)
 
 		expect(downloadModelMock).toHaveBeenCalledWith(MOSS)
